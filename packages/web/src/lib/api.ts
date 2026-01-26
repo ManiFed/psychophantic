@@ -1,4 +1,27 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// In production, NEXT_PUBLIC_API_URL must be set - never fall back to localhost
+const getApiUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+
+  if (url) {
+    return url;
+  }
+
+  // In production, missing API URL is a configuration error
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      'FATAL: NEXT_PUBLIC_API_URL is not set in production. ' +
+      'The app will not function correctly. ' +
+      'Please set NEXT_PUBLIC_API_URL in your Railway environment variables.'
+    );
+    // Return a URL that will clearly fail and be obvious in network logs
+    return 'https://API_URL_NOT_CONFIGURED.invalid';
+  }
+
+  // Development fallback
+  return 'http://localhost:3001';
+};
+
+const API_URL = getApiUrl();
 
 interface FetchOptions extends RequestInit {
   token?: string;
