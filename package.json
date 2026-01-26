@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:api": "npm run build -w @psychophant/shared && npm run build -w @psychophant/api",
+    "build:orchestration": "npm run build -w @psychophant/shared && npm run build -w @psychophant/orchestration",
+    "build:web": "npm run build -w @psychophant/shared && npm run build -w @psychophant/web",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
