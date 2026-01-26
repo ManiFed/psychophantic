@@ -74,7 +74,7 @@ export async function handleForceAgreementPhase(data: {
     return;
   }
 
-  const state = conversation.forceAgreementState as ForceAgreementState;
+  const state = conversation.forceAgreementState as unknown as ForceAgreementState;
 
   switch (phase) {
     case ForceAgreementPhase.COLLECTING_NON_NEGOTIABLES:
@@ -557,7 +557,7 @@ async function updateForceAgreementState(
 ): Promise<void> {
   await prisma.conversation.update({
     where: { id: conversationId },
-    data: { forceAgreementState: state },
+    data: { forceAgreementState: JSON.parse(JSON.stringify(state)) },
   });
 
   await redisHelpers.setSessionState(conversationId, {
