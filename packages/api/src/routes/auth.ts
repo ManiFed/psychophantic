@@ -15,6 +15,40 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+// Helper to identify Prisma errors
+const isPrismaError = (err: unknown): err is Error & { code?: string } => {
+  return err instanceof Error && 'code' in err;
+};
+
+// Helper to handle database errors gracefully
+const handleDatabaseError = (err: unknown, reply: FastifyReply) => {
+  console.error('Database error:', err);
+
+  if (isPrismaError(err)) {
+    // Connection errors
+    if (err.message.includes('DATABASE_URL') || err.message.includes('connect')) {
+      return reply.status(503).send({
+        error: 'Database temporarily unavailable',
+        code: 'DB_CONNECTION_ERROR',
+      });
+    }
+
+    // Unique constraint violation
+    if (err.code === 'P2002') {
+      return reply.status(400).send({
+        error: 'Email already registered',
+        code: 'DUPLICATE_EMAIL',
+      });
+    }
+  }
+
+  // Generic server error
+  return reply.status(500).send({
+    error: 'An unexpected error occurred. Please try again.',
+    code: 'INTERNAL_ERROR',
+  });
+};
+
 export async function authRoutes(server: FastifyInstance) {
   // Register
   server.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -62,7 +96,9 @@ export async function authRoutes(server: FastifyInstance) {
           details: err.errors,
         });
       }
-      throw err;
+
+      // Handle Prisma/database errors
+      return handleDatabaseError(err, reply);
     }
   });
 
@@ -101,7 +137,9 @@ export async function authRoutes(server: FastifyInstance) {
           details: err.errors,
         });
       }
-      throw err;
+
+      // Handle Prisma/database errors
+      return handleDatabaseError(err, reply);
     }
   });
 
@@ -109,17 +147,21 @@ export async function authRoutes(server: FastifyInstance) {
   server.get(
     '/me',
     { preHandler: [authenticate] },
-    async (request: FastifyRequest) => {
-      const user = await prisma.user.findUnique({
-        where: { id: request.user.id },
-        select: {
-          id: true,
-          email: true,
-          createdAt: true,
-        },
-      });
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: request.user.id },
+          select: {
+            id: true,
+            email: true,
+            createdAt: true,
+          },
+        });
 
-      return { user };
+        return { user };
+      } catch (err) {
+        return handleDatabaseError(err, reply);
+      }
     }
   );
 }
