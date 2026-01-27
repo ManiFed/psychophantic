@@ -140,6 +140,7 @@ export const agentsApi = {
     fetchApi<{ agent: Agent }>(`/api/agents/${id}/clone`, {
       token,
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 };
 
@@ -165,18 +166,21 @@ export const conversationsApi = {
     fetchApi<{ success: boolean }>(`/api/conversations/${id}/start`, {
       token,
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   pause: (token: string, id: string) =>
     fetchApi<{ success: boolean }>(`/api/conversations/${id}/pause`, {
       token,
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   resume: (token: string, id: string) =>
     fetchApi<{ success: boolean }>(`/api/conversations/${id}/resume`, {
       token,
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   interject: (token: string, id: string, content: string) =>
@@ -192,6 +196,7 @@ export const conversationsApi = {
       {
         token,
         method: 'POST',
+        body: JSON.stringify({}),
       }
     ),
 };
