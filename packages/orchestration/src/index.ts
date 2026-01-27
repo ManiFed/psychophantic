@@ -125,5 +125,20 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
+// Startup validation
+console.log('=====================================');
+console.log('Orchestration Worker Starting...');
+console.log('=====================================');
+console.log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`DATABASE_URL present: ${!!process.env.DATABASE_URL}`);
+console.log(`REDIS_URL present: ${!!process.env.REDIS_URL}`);
+console.log(`OPENROUTER_API_KEY present: ${!!process.env.OPENROUTER_API_KEY}`);
+console.log(`OPENROUTER_API_KEY starts with: ${process.env.OPENROUTER_API_KEY?.substring(0, 10)}...`);
+
+if (!process.env.OPENROUTER_API_KEY) {
+  console.error('WARNING: OPENROUTER_API_KEY is not set! AI generation will fail.');
+}
+
+console.log('=====================================');
 console.log('Orchestration worker started');
 console.log('Waiting for jobs...');

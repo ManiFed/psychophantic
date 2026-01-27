@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
+import { useCreditsStore, formatCents } from '@/stores/credits';
+import { CreditsPurchaseModal } from '@/components/CreditsPurchaseModal';
 
 function Logo() {
   return (
@@ -28,14 +30,17 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const { user, token, logout, checkAuth } = useAuthStore();
+  const { totalCents, fetchBalance } = useCreditsStore();
+  const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
       router.push('/login');
     } else {
       checkAuth();
+      fetchBalance();
     }
-  }, [token, router, checkAuth]);
+  }, [token, router, checkAuth, fetchBalance]);
 
   if (!token) {
     return null;
@@ -72,10 +77,13 @@ export default function DashboardLayout({
 
           <div className="flex items-center gap-4">
             <div className="hidden sm:block">
-              <div className="border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs">
-                <span className="text-white/50">credit: </span>
-                <span className="text-orange-500 font-medium">$0.10</span>
-              </div>
+              <button
+                onClick={() => setIsCreditsModalOpen(true)}
+                className="border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs hover:bg-orange-500/20 transition-colors cursor-pointer"
+              >
+                <span className="text-white/50">credits: </span>
+                <span className="text-orange-500 font-medium">{formatCents(totalCents)}</span>
+              </button>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-white/50 hidden sm:inline">
@@ -97,6 +105,12 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">{children}</main>
+
+      {/* Credits Modal */}
+      <CreditsPurchaseModal
+        isOpen={isCreditsModalOpen}
+        onClose={() => setIsCreditsModalOpen(false)}
+      />
     </div>
   );
 }

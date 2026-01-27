@@ -82,10 +82,17 @@ export async function generateAgentResponse(
 ): Promise<GenerationResult> {
   const startTime = Date.now();
 
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY is not configured');
+  }
+
+  console.log(`[OpenRouter] Generating response for agent ${agent.name} using model ${agent.model}`);
+
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
       'X-Title': 'Psychophant',
@@ -99,9 +106,12 @@ export async function generateAgentResponse(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenRouter error: ${error}`);
+    const errorText = await response.text();
+    console.error(`[OpenRouter] API error (${response.status}):`, errorText);
+    throw new Error(`OpenRouter error (${response.status}): ${errorText}`);
   }
+
+  console.log(`[OpenRouter] Stream started for message ${messageId}`);
 
   // Publish message start event
   await publishEvent(conversationId, events.messageStart(agent.id, messageId));
