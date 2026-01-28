@@ -328,16 +328,20 @@ export async function conversationRoutes(server: FastifyInstance) {
           },
         });
 
-        // If conversation was paused, keep it paused but mark interjection as pending
-        // If active, the orchestration will pick it up
+        // Get current session state to determine what to do
         const sessionState = await redisHelpers.getSessionState(conversation.id);
+
         if (sessionState?.status === 'generating') {
           // Currently generating, queue interjection for after current message
           await redisHelpers.setSessionState(conversation.id, {
             status: sessionState.status,
             pendingInterjection: body.content,
           });
+        } else if (conversation.status === 'active') {
+          // Conversation is active but not generating - trigger next turn
+          await queueHelpers.nextTurn(conversation.id);
         }
+        // If paused, user needs to explicitly resume
 
         return { message };
       } catch (err) {
