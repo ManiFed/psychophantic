@@ -330,18 +330,28 @@ export async function conversationRoutes(server: FastifyInstance) {
 
         // Get current session state to determine what to do
         const sessionState = await redisHelpers.getSessionState(conversation.id);
+        console.log(`[Interject] Conversation ${conversation.id}: status=${conversation.status}, sessionState=`, sessionState);
 
         if (sessionState?.status === 'generating') {
           // Currently generating, queue interjection for after current message
+          console.log(`[Interject] Currently generating, marking interjection as pending`);
           await redisHelpers.setSessionState(conversation.id, {
             status: sessionState.status,
             pendingInterjection: body.content,
           });
         } else if (conversation.status === 'active') {
           // Conversation is active but not generating - trigger next turn
-          await queueHelpers.nextTurn(conversation.id);
+          console.log(`[Interject] Queueing next turn for conversation ${conversation.id}`);
+          try {
+            const job = await queueHelpers.nextTurn(conversation.id);
+            console.log(`[Interject] Job queued successfully:`, job?.id);
+          } catch (queueError) {
+            console.error(`[Interject] Failed to queue next turn:`, queueError);
+            // Don't fail the request, but log the error
+          }
+        } else {
+          console.log(`[Interject] Conversation is paused or completed, not queueing turn`);
         }
-        // If paused, user needs to explicitly resume
 
         return { message };
       } catch (err) {

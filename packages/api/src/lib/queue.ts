@@ -1,6 +1,9 @@
 import { Queue } from 'bullmq';
 import { redis } from './redis.js';
 
+// Log queue initialization
+console.log(`[Queue] Initializing orchestration queue, redis available: ${!!redis}`);
+
 // Main orchestration queue for turn management
 // Will be null if Redis is not available
 export const orchestrationQueue: Queue | null = redis
@@ -21,6 +24,8 @@ export const orchestrationQueue: Queue | null = redis
       },
     })
   : null;
+
+console.log(`[Queue] orchestrationQueue created: ${!!orchestrationQueue}`);
 
 // Job types
 export type OrchestrationJobType =
