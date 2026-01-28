@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useConversationsStore } from '@/stores/conversations';
@@ -34,29 +34,42 @@ export default function ConversationPage() {
   const [currentAgentName, setCurrentAgentName] = useState<string | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
 
-  // Set up streaming
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handleMessageStart = useCallback((agentId: string, messageId: string) => {
+    setStreamingMessageId(messageId);
+    // Get participants from store directly to avoid stale closure
+    const { participants: currentParticipants } = useConversationsStore.getState();
+    const participant = currentParticipants.find((p) => p.agentId === agentId);
+    if (participant) {
+      setCurrentAgentName(participant.agent.name);
+    }
+  }, []);
+
+  const handleMessageComplete = useCallback(() => {
+    setStreamingMessageId(null);
+    setCurrentAgentName(null);
+  }, []);
+
+  const handleTurnChange = useCallback((_agentId: string, agentName: string) => {
+    setCurrentAgentName(agentName);
+  }, []);
+
+  const handleConversationComplete = useCallback(() => {
+    useCreditsStore.getState().fetchBalance();
+  }, []);
+
+  const handleError = useCallback((code: string, message: string) => {
+    console.error(`Error ${code}: ${message}`);
+  }, []);
+
+  // Set up streaming - use URL conversationId, not currentConversation.id
   const { isConnected } = useConversationStream({
-    conversationId: currentConversation?.id || null,
-    onMessageStart: (agentId, messageId) => {
-      setStreamingMessageId(messageId);
-      const participant = participants.find((p) => p.agentId === agentId);
-      if (participant) {
-        setCurrentAgentName(participant.agent.name);
-      }
-    },
-    onMessageComplete: () => {
-      setStreamingMessageId(null);
-      setCurrentAgentName(null);
-    },
-    onTurnChange: (agentId, agentName) => {
-      setCurrentAgentName(agentName);
-    },
-    onConversationComplete: () => {
-      fetchBalance();
-    },
-    onError: (code, message) => {
-      console.error(`Error ${code}: ${message}`);
-    },
+    conversationId: conversationId,
+    onMessageStart: handleMessageStart,
+    onMessageComplete: handleMessageComplete,
+    onTurnChange: handleTurnChange,
+    onConversationComplete: handleConversationComplete,
+    onError: handleError,
   });
 
   // Fetch conversation on mount

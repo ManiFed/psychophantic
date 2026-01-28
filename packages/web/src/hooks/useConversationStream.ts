@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '@/stores/auth';
 import { useConversationsStore } from '@/stores/conversations';
 import { useCreditsStore } from '@/stores/credits';
@@ -10,70 +10,47 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface StreamEvent {
   type: string;
+  data?: unknown;
   [key: string]: unknown;
 }
 
-interface MessageStartEvent extends StreamEvent {
-  type: 'message:start';
+interface MessageStartData {
   agentId: string;
   messageId: string;
 }
 
-interface MessageTokenEvent extends StreamEvent {
-  type: 'message:token';
+interface MessageTokenData {
   messageId: string;
   token: string;
   tokenIndex: number;
 }
 
-interface MessageCompleteEvent extends StreamEvent {
-  type: 'message:complete';
+interface MessageCompleteData {
   messageId: string;
-  content: string;
+  fullContent: string;
   inputTokens: number;
   outputTokens: number;
   costCents: number;
 }
 
-interface TurnChangeEvent extends StreamEvent {
-  type: 'turn:change';
-  agentId: string;
+interface TurnChangeData {
+  nextAgentId: string;
   agentName: string;
   round: number;
 }
 
-interface RoundCompleteEvent extends StreamEvent {
-  type: 'round:complete';
-  round: number;
+interface RoundCompleteData {
+  roundNumber: number;
 }
 
-interface ConversationCompleteEvent extends StreamEvent {
-  type: 'conversation:complete';
+interface ConversationCompleteData {
   totalCostCents: number;
 }
 
-interface CreditUpdateEvent extends StreamEvent {
-  type: 'credit:update';
-  freeCents: number;
-  purchasedCents: number;
-  totalCents: number;
-}
-
-interface ErrorEvent extends StreamEvent {
-  type: 'error';
+interface ErrorData {
   code: string;
   message: string;
 }
-
-type ConversationEvent =
-  | MessageStartEvent
-  | MessageTokenEvent
-  | MessageCompleteEvent
-  | TurnChangeEvent
-  | RoundCompleteEvent
-  | ConversationCompleteEvent
-  | CreditUpdateEvent
-  | ErrorEvent;
 
 interface StreamingMessage {
   id: string;
@@ -105,110 +82,23 @@ export function useConversationStream({
 }: UseConversationStreamOptions) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const streamingMessageRef = useRef<StreamingMessage | null>(null);
+  const connectedConversationIdRef = useRef<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  const { token } = useAuthStore();
-  const { addMessage, updateMessage, updateConversationStatus, participants } = useConversationsStore();
-  const { fetchBalance } = useCreditsStore();
+  // Store refs to avoid dependency issues
+  const callbacksRef = useRef({
+    onMessageStart,
+    onMessageToken,
+    onMessageComplete,
+    onTurnChange,
+    onRoundComplete,
+    onConversationComplete,
+    onError,
+  });
 
-  const handleEvent = useCallback(
-    (event: ConversationEvent) => {
-      switch (event.type) {
-        case 'message:start': {
-          const e = event as MessageStartEvent;
-          // Create a placeholder message
-          const participant = participants.find((p) => p.agentId === e.agentId);
-          const newMessage: Message = {
-            id: e.messageId,
-            conversationId: conversationId!,
-            agentId: e.agentId,
-            userId: null,
-            content: '',
-            role: 'agent',
-            roundNumber: null,
-            modelUsed: participant?.agent.model || null,
-            inputTokens: null,
-            outputTokens: null,
-            costCents: 0,
-            generationTimeMs: null,
-            messageType: 'standard',
-            createdAt: new Date().toISOString(),
-          };
-          addMessage(newMessage);
-          streamingMessageRef.current = {
-            id: e.messageId,
-            agentId: e.agentId,
-            content: '',
-            isStreaming: true,
-          };
-          onMessageStart?.(e.agentId, e.messageId);
-          break;
-        }
-
-        case 'message:token': {
-          const e = event as MessageTokenEvent;
-          if (streamingMessageRef.current?.id === e.messageId) {
-            streamingMessageRef.current.content += e.token;
-            updateMessage(e.messageId, { content: streamingMessageRef.current.content });
-          }
-          onMessageToken?.(e.messageId, e.token);
-          break;
-        }
-
-        case 'message:complete': {
-          const e = event as MessageCompleteEvent;
-          updateMessage(e.messageId, {
-            content: e.content,
-            inputTokens: e.inputTokens,
-            outputTokens: e.outputTokens,
-            costCents: e.costCents,
-          });
-          streamingMessageRef.current = null;
-          onMessageComplete?.(e.messageId, e.content);
-          break;
-        }
-
-        case 'turn:change': {
-          const e = event as TurnChangeEvent;
-          onTurnChange?.(e.agentId, e.agentName, e.round);
-          break;
-        }
-
-        case 'round:complete': {
-          const e = event as RoundCompleteEvent;
-          onRoundComplete?.(e.round);
-          break;
-        }
-
-        case 'conversation:complete': {
-          const e = event as ConversationCompleteEvent;
-          updateConversationStatus('completed');
-          onConversationComplete?.(e.totalCostCents);
-          break;
-        }
-
-        case 'credit:update': {
-          // Refresh credit balance
-          fetchBalance();
-          break;
-        }
-
-        case 'error': {
-          const e = event as ErrorEvent;
-          onError?.(e.code, e.message);
-          if (e.code === 'INSUFFICIENT_CREDITS') {
-            updateConversationStatus('paused');
-          }
-          break;
-        }
-      }
-    },
-    [
-      conversationId,
-      participants,
-      addMessage,
-      updateMessage,
-      updateConversationStatus,
-      fetchBalance,
+  // Update callbacks ref when they change
+  useEffect(() => {
+    callbacksRef.current = {
       onMessageStart,
       onMessageToken,
       onMessageComplete,
@@ -216,60 +106,167 @@ export function useConversationStream({
       onRoundComplete,
       onConversationComplete,
       onError,
-    ]
-  );
-
-  const connect = useCallback(() => {
-    if (!conversationId || !token) return;
-
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    // Create new EventSource with auth token in URL (SSE doesn't support headers)
-    const url = `${API_URL}/api/conversations/${conversationId}/stream?token=${encodeURIComponent(token)}`;
-    const eventSource = new EventSource(url);
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as ConversationEvent;
-        handleEvent(data);
-      } catch (err) {
-        console.error('Failed to parse SSE event:', err);
-      }
     };
-
-    eventSource.onerror = () => {
-      console.error('SSE connection error');
-      // EventSource will automatically reconnect
-    };
-
-    eventSourceRef.current = eventSource;
-  }, [conversationId, token, handleEvent]);
+  });
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
+      connectedConversationIdRef.current = null;
+      setIsConnected(false);
     }
   }, []);
 
-  // Auto-connect when conversationId changes
+  // Connect to SSE - only depends on conversationId
   useEffect(() => {
-    if (conversationId && token) {
-      connect();
+    const token = useAuthStore.getState().token;
+
+    if (!conversationId || !token) {
+      disconnect();
+      return;
     }
 
+    // Don't reconnect if already connected to same conversation
+    if (connectedConversationIdRef.current === conversationId && eventSourceRef.current) {
+      return;
+    }
+
+    // Close any existing connection
+    disconnect();
+
+    // Create new EventSource with auth token in URL (SSE doesn't support headers)
+    const url = `${API_URL}/api/conversations/${conversationId}/stream?token=${encodeURIComponent(token)}`;
+    console.log('[SSE] Connecting to:', conversationId);
+    const eventSource = new EventSource(url);
+
+    eventSource.onopen = () => {
+      console.log('[SSE] Connected to:', conversationId);
+      connectedConversationIdRef.current = conversationId;
+      setIsConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data) as StreamEvent;
+        const eventType = parsed.type;
+        // Data can be in parsed.data (wrapped) or directly on parsed (flat)
+        const eventData = (parsed.data || parsed) as Record<string, unknown>;
+
+        // Get current store state directly to avoid stale closures
+        const store = useConversationsStore.getState();
+        const creditsStore = useCreditsStore.getState();
+        const callbacks = callbacksRef.current;
+
+        switch (eventType) {
+          case 'message:start': {
+            const d = eventData as unknown as MessageStartData;
+            const participant = store.participants.find((p) => p.agentId === d.agentId);
+            const newMessage: Message = {
+              id: d.messageId,
+              conversationId: conversationId,
+              agentId: d.agentId,
+              userId: null,
+              content: '',
+              role: 'agent',
+              roundNumber: null,
+              modelUsed: participant?.agent.model || null,
+              inputTokens: null,
+              outputTokens: null,
+              costCents: 0,
+              generationTimeMs: null,
+              messageType: 'standard',
+              createdAt: new Date().toISOString(),
+            };
+            store.addMessage(newMessage);
+            streamingMessageRef.current = {
+              id: d.messageId,
+              agentId: d.agentId,
+              content: '',
+              isStreaming: true,
+            };
+            callbacks.onMessageStart?.(d.agentId, d.messageId);
+            break;
+          }
+
+          case 'message:token': {
+            const d = eventData as unknown as MessageTokenData;
+            if (streamingMessageRef.current?.id === d.messageId) {
+              streamingMessageRef.current.content += d.token;
+              store.updateMessage(d.messageId, { content: streamingMessageRef.current.content });
+            }
+            callbacks.onMessageToken?.(d.messageId, d.token);
+            break;
+          }
+
+          case 'message:complete': {
+            const d = eventData as unknown as MessageCompleteData;
+            store.updateMessage(d.messageId, {
+              content: d.fullContent,
+              inputTokens: d.inputTokens,
+              outputTokens: d.outputTokens,
+              costCents: d.costCents,
+            });
+            streamingMessageRef.current = null;
+            callbacks.onMessageComplete?.(d.messageId, d.fullContent);
+            break;
+          }
+
+          case 'turn:change': {
+            const d = eventData as unknown as TurnChangeData;
+            callbacks.onTurnChange?.(d.nextAgentId, d.agentName, d.round);
+            break;
+          }
+
+          case 'round:complete': {
+            const d = eventData as unknown as RoundCompleteData;
+            callbacks.onRoundComplete?.(d.roundNumber);
+            break;
+          }
+
+          case 'conversation:complete': {
+            const d = eventData as unknown as ConversationCompleteData;
+            store.updateConversationStatus('completed');
+            callbacks.onConversationComplete?.(d.totalCostCents);
+            break;
+          }
+
+          case 'credit:update': {
+            creditsStore.fetchBalance();
+            break;
+          }
+
+          case 'error': {
+            const d = eventData as unknown as ErrorData;
+            callbacks.onError?.(d.code, d.message);
+            if (d.code === 'INSUFFICIENT_CREDITS') {
+              store.updateConversationStatus('paused');
+            }
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('[SSE] Failed to parse event:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('[SSE] Connection error:', err);
+      setIsConnected(false);
+      // EventSource will automatically try to reconnect
+    };
+
+    eventSourceRef.current = eventSource;
+
     return () => {
+      console.log('[SSE] Disconnecting');
       disconnect();
     };
-  }, [conversationId, token, connect, disconnect]);
+  }, [conversationId, disconnect]); // Only reconnect when conversationId changes
 
   return {
-    connect,
     disconnect,
-    isConnected: eventSourceRef.current?.readyState === EventSource.OPEN,
+    isConnected,
     streamingMessage: streamingMessageRef.current,
   };
 }
