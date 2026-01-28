@@ -132,12 +132,34 @@ console.log('=====================================');
 console.log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`DATABASE_URL present: ${!!process.env.DATABASE_URL}`);
 console.log(`REDIS_URL present: ${!!process.env.REDIS_URL}`);
+console.log(`REDIS_URL host: ${process.env.REDIS_URL ? new URL(process.env.REDIS_URL).host : 'N/A'}`);
 console.log(`OPENROUTER_API_KEY present: ${!!process.env.OPENROUTER_API_KEY}`);
 console.log(`OPENROUTER_API_KEY starts with: ${process.env.OPENROUTER_API_KEY?.substring(0, 10)}...`);
 
 if (!process.env.OPENROUTER_API_KEY) {
   console.error('WARNING: OPENROUTER_API_KEY is not set! AI generation will fail.');
 }
+
+// Test Redis connection
+redis.ping().then(() => {
+  console.log('Redis connection: OK');
+}).catch((err) => {
+  console.error('Redis connection FAILED:', err.message);
+});
+
+// Log queue stats periodically
+setInterval(async () => {
+  try {
+    const waiting = await orchestrationQueue.getWaitingCount();
+    const active = await orchestrationQueue.getActiveCount();
+    const failed = await orchestrationQueue.getFailedCount();
+    if (waiting > 0 || active > 0 || failed > 0) {
+      console.log(`[Queue Stats] waiting: ${waiting}, active: ${active}, failed: ${failed}`);
+    }
+  } catch (e) {
+    // Ignore stats errors
+  }
+}, 10000); // Every 10 seconds
 
 console.log('=====================================');
 console.log('Orchestration worker started');

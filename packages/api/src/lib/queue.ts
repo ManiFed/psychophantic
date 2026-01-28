@@ -70,6 +70,30 @@ export type OrchestrationJob =
   | ForceAgreementPhaseJob
   | ResumeConversationJob;
 
+// Helper to get queue stats for debugging
+export async function getQueueStats() {
+  if (!orchestrationQueue) {
+    return { available: false, reason: 'Redis not configured' };
+  }
+
+  try {
+    const [waiting, active, completed, failed, delayed] = await Promise.all([
+      orchestrationQueue.getWaitingCount(),
+      orchestrationQueue.getActiveCount(),
+      orchestrationQueue.getCompletedCount(),
+      orchestrationQueue.getFailedCount(),
+      orchestrationQueue.getDelayedCount(),
+    ]);
+
+    return {
+      available: true,
+      counts: { waiting, active, completed, failed, delayed },
+    };
+  } catch (error) {
+    return { available: false, reason: String(error) };
+  }
+}
+
 // Helper functions to add jobs
 // These throw an error if Redis is not available
 export const queueHelpers = {
@@ -77,21 +101,27 @@ export const queueHelpers = {
     if (!orchestrationQueue) {
       throw new Error('Redis is required for conversation orchestration. Please configure REDIS_URL.');
     }
-    return orchestrationQueue.add('start_conversation', {
+    console.log(`[Queue] Adding start_conversation job for ${conversationId}`);
+    const job = await orchestrationQueue.add('start_conversation', {
       type: 'start_conversation',
       conversationId,
       initialPrompt,
     } satisfies StartConversationJob);
+    console.log(`[Queue] Job added: ${job.id}`);
+    return job;
   },
 
   async nextTurn(conversationId: string) {
     if (!orchestrationQueue) {
       throw new Error('Redis is required for conversation orchestration. Please configure REDIS_URL.');
     }
-    return orchestrationQueue.add('next_turn', {
+    console.log(`[Queue] Adding next_turn job for ${conversationId}`);
+    const job = await orchestrationQueue.add('next_turn', {
       type: 'next_turn',
       conversationId,
     } satisfies NextTurnJob);
+    console.log(`[Queue] Job added: ${job.id}`);
+    return job;
   },
 
   async processInterjection(conversationId: string, content: string) {

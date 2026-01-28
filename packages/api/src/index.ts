@@ -6,6 +6,8 @@ import { agentRoutes } from './routes/agents.js';
 import { conversationRoutes } from './routes/conversations.js';
 import { creditRoutes } from './routes/credits.js';
 import { streamRoutes } from './routes/stream.js';
+import { getQueueStats } from './lib/queue.js';
+import { redis, isRedisAvailable } from './lib/redis.js';
 
 // =============================================================================
 // STARTUP ENVIRONMENT VALIDATION
@@ -148,6 +150,36 @@ server.get('/health', async () => {
       databaseConfigured: !!process.env.DATABASE_URL,
       redisConfigured: !!process.env.REDIS_URL,
     },
+  };
+});
+
+// Debug endpoint to check queue and Redis status
+server.get('/debug/queue', async () => {
+  const queueStats = await getQueueStats();
+  const redisStatus = isRedisAvailable();
+
+  // Test Redis pub/sub
+  let pubsubTest = 'not tested';
+  if (redis) {
+    try {
+      await redis.ping();
+      pubsubTest = 'ping successful';
+    } catch (e) {
+      pubsubTest = `ping failed: ${e}`;
+    }
+  }
+
+  return {
+    timestamp: new Date().toISOString(),
+    redis: {
+      configured: !!process.env.REDIS_URL,
+      connected: redisStatus,
+      pingTest: pubsubTest,
+    },
+    queue: queueStats,
+    hint: queueStats.available && (queueStats as any).counts?.waiting > 0
+      ? 'Jobs are waiting - orchestration worker may not be running!'
+      : 'Queue looks healthy',
   };
 });
 
