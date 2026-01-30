@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
     "deploy": "prisma db push && npm run build",
-    "start": "prisma db push --skip-generate && node dist/index.js",
+    "start": "prisma db push --skip-generate --accept-data-loss && node dist/index.js",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
