@@ -42,6 +42,16 @@ export async function handleStartConversation(data: {
 }): Promise<void> {
   const { conversationId, initialPrompt } = data;
 
+  // Idempotency check: if messages already exist, this is a retry — skip
+  const existingMessages = await prisma.message.count({
+    where: { conversationId },
+  });
+
+  if (existingMessages > 0) {
+    console.log(`[Start] Conversation ${conversationId} already has messages, skipping duplicate start`);
+    return;
+  }
+
   // Create the initial prompt as a system message
   if (initialPrompt) {
     await prisma.message.create({
@@ -205,28 +215,14 @@ export async function handleNextTurn(data: { conversationId: string }): Promise<
       await redisHelpers.setSessionState(conversationId, {
         pendingInterjection: null,
       });
-    } else {
-      // Check if we need to continue (not at end of debate)
+    } else if (roundComplete) {
+      // Round is complete — check if debate finished, otherwise wait for user input
       const updatedConversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
         select: { status: true, mode: true, totalRounds: true, currentRound: true },
       });
 
       if (
-        updatedConversation?.status === 'active' &&
-        !(
-          updatedConversation.mode === 'debate' &&
-          updatedConversation.totalRounds &&
-          updatedConversation.currentRound > updatedConversation.totalRounds
-        )
-      ) {
-        // Schedule next turn with small delay to prevent overwhelming the API
-        await orchestrationQueue.add(
-          'next_turn',
-          { type: 'next_turn', conversationId },
-          { delay: 500 }
-        );
-      } else if (
         updatedConversation?.mode === 'debate' &&
         updatedConversation.totalRounds &&
         updatedConversation.currentRound > updatedConversation.totalRounds
@@ -239,6 +235,26 @@ export async function handleNextTurn(data: { conversationId: string }): Promise<
         if (fullConversation) {
           await completeConversation(fullConversation as any);
         }
+      } else {
+        // Notify client we're waiting for user input before next round
+        await publishEvent(
+          conversationId,
+          events.waitingForInput(conversation.currentRound)
+        );
+      }
+    } else {
+      // Mid-round — continue to next agent in this round
+      const updatedConversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { status: true },
+      });
+
+      if (updatedConversation?.status === 'active') {
+        await orchestrationQueue.add(
+          'next_turn',
+          { type: 'next_turn', conversationId },
+          { delay: 500 }
+        );
       }
     }
   } finally {

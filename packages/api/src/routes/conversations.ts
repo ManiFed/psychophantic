@@ -518,6 +518,44 @@ export async function conversationRoutes(server: FastifyInstance) {
     }
   );
 
+  // Delete conversation
+  server.delete<ConversationIdParams>(
+    '/:conversationId',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: request.params.conversationId,
+          userId: request.user.id,
+        },
+      });
+
+      if (!conversation) {
+        return reply.status(404).send({ error: 'Conversation not found' });
+      }
+
+      // Clean up Redis session state
+      try {
+        await redisHelpers.deleteSessionState(conversation.id);
+      } catch {
+        // Ignore Redis errors during cleanup
+      }
+
+      // Delete messages first, then participants, then conversation
+      await prisma.message.deleteMany({
+        where: { conversationId: conversation.id },
+      });
+      await prisma.conversationParticipant.deleteMany({
+        where: { conversationId: conversation.id },
+      });
+      await prisma.conversation.delete({
+        where: { id: conversation.id },
+      });
+
+      return { success: true };
+    }
+  );
+
   // Share/unshare conversation
   server.post<ShareRoute>(
     '/:conversationId/share',

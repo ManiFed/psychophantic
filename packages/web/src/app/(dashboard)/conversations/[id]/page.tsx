@@ -63,7 +63,7 @@ export default function ConversationPage() {
   }, []);
 
   // Set up streaming - use URL conversationId, not currentConversation.id
-  const { isConnected } = useConversationStream({
+  const { isConnected, isWaitingForInput } = useConversationStream({
     conversationId: conversationId,
     onMessageStart: handleMessageStart,
     onMessageComplete: handleMessageComplete,
@@ -188,10 +188,16 @@ export default function ConversationPage() {
               >
                 {currentConversation.status}
               </span>
-              {isConnected && isActive && (
+              {isConnected && isActive && !isWaitingForInput && (
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                   streaming
+                </span>
+              )}
+              {isWaitingForInput && isActive && (
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                  waiting for input
                 </span>
               )}
             </div>
@@ -239,9 +245,14 @@ export default function ConversationPage() {
       </div>
 
       {/* Status bar */}
-      {currentAgentName && isActive && (
+      {currentAgentName && isActive && !isWaitingForInput && (
         <div className="flex-shrink-0 py-2 text-xs text-white/50 border-t border-white/10 mt-2">
           <span className="animate-pulse">{currentAgentName} is typing...</span>
+        </div>
+      )}
+      {isWaitingForInput && isActive && (
+        <div className="flex-shrink-0 py-2 text-xs text-orange-400 border-t border-orange-500/30 mt-2">
+          round complete — send a message to continue the conversation
         </div>
       )}
 

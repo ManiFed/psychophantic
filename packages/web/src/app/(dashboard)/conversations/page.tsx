@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useConversationsStore } from '@/stores/conversations';
 
 export default function ConversationsPage() {
-  const { conversations, fetchConversations, isLoading, error } = useConversationsStore();
+  const { conversations, fetchConversations, deleteConversation, isLoading, error } =
+    useConversationsStore();
 
   useEffect(() => {
     fetchConversations();
@@ -102,37 +103,53 @@ export default function ConversationsPage() {
       {!isLoading && conversations.length > 0 && (
         <div className="space-y-3">
           {conversations.map((conversation) => (
-            <Link
+            <div
               key={conversation.id}
-              href={`/conversations/${conversation.id}`}
-              className="block border border-white/10 bg-white/5 p-4 hover:border-orange-500/50 transition-colors"
+              className="border border-white/10 bg-white/5 hover:border-orange-500/50 transition-colors flex"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs px-2 py-0.5 border border-white/20 uppercase">
-                      {conversation.mode}
-                    </span>
-                    <span className={`text-xs ${getStatusColor(conversation.status)}`}>
-                      {getStatusLabel(conversation.status)}
-                    </span>
-                  </div>
-                  <h3 className="font-medium truncate">
-                    {conversation.title || 'Untitled Conversation'}
-                  </h3>
-                  <div className="mt-2 flex items-center gap-4 text-xs text-white/50">
-                    {conversation.mode === 'debate' && conversation.totalRounds && (
-                      <span>
-                        Round {conversation.currentRound}/{conversation.totalRounds}
+              <Link
+                href={`/conversations/${conversation.id}`}
+                className="flex-1 p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-xs px-2 py-0.5 border border-white/20 uppercase">
+                        {conversation.mode}
                       </span>
-                    )}
-                    <span>${(conversation.totalCostCents / 100).toFixed(2)} spent</span>
-                    <span>{formatDate(conversation.updatedAt)}</span>
+                      <span className={`text-xs ${getStatusColor(conversation.status)}`}>
+                        {getStatusLabel(conversation.status)}
+                      </span>
+                    </div>
+                    <h3 className="font-medium truncate">
+                      {conversation.title || 'Untitled Conversation'}
+                    </h3>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-white/50">
+                      {conversation.mode === 'debate' && conversation.totalRounds && (
+                        <span>
+                          Round {conversation.currentRound}/{conversation.totalRounds}
+                        </span>
+                      )}
+                      <span>${(conversation.totalCostCents / 100).toFixed(2)} spent</span>
+                      <span>{formatDate(conversation.updatedAt)}</span>
+                    </div>
                   </div>
+                  <div className="text-white/30">→</div>
                 </div>
-                <div className="text-white/30">→</div>
-              </div>
-            </Link>
+              </Link>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm('Delete this conversation? This cannot be undone.')) {
+                    deleteConversation(conversation.id);
+                  }
+                }}
+                className="px-4 border-l border-white/10 text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors text-xs"
+                title="Delete conversation"
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
       )}

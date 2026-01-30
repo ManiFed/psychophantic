@@ -66,6 +66,7 @@ interface UseConversationStreamOptions {
   onMessageComplete?: (messageId: string, content: string) => void;
   onTurnChange?: (agentId: string, agentName: string, round: number) => void;
   onRoundComplete?: (round: number) => void;
+  onWaitingForInput?: (round: number) => void;
   onConversationComplete?: (totalCostCents: number) => void;
   onError?: (code: string, message: string) => void;
 }
@@ -77,6 +78,7 @@ export function useConversationStream({
   onMessageComplete,
   onTurnChange,
   onRoundComplete,
+  onWaitingForInput,
   onConversationComplete,
   onError,
 }: UseConversationStreamOptions) {
@@ -84,6 +86,7 @@ export function useConversationStream({
   const streamingMessageRef = useRef<StreamingMessage | null>(null);
   const connectedConversationIdRef = useRef<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isWaitingForInput, setIsWaitingForInput] = useState(false);
 
   // Store refs to avoid dependency issues
   const callbacksRef = useRef({
@@ -92,6 +95,7 @@ export function useConversationStream({
     onMessageComplete,
     onTurnChange,
     onRoundComplete,
+    onWaitingForInput,
     onConversationComplete,
     onError,
   });
@@ -104,6 +108,7 @@ export function useConversationStream({
       onMessageComplete,
       onTurnChange,
       onRoundComplete,
+      onWaitingForInput,
       onConversationComplete,
       onError,
     };
@@ -160,6 +165,7 @@ export function useConversationStream({
 
         switch (eventType) {
           case 'message:start': {
+            setIsWaitingForInput(false);
             const d = eventData as unknown as MessageStartData;
             const participant = store.participants.find((p) => p.agentId === d.agentId);
             const newMessage: Message = {
@@ -231,6 +237,13 @@ export function useConversationStream({
             break;
           }
 
+          case 'waiting:input': {
+            const d = eventData as unknown as { roundNumber: number };
+            setIsWaitingForInput(true);
+            callbacks.onWaitingForInput?.(d.roundNumber);
+            break;
+          }
+
           case 'credit:update': {
             creditsStore.fetchBalance();
             break;
@@ -267,6 +280,7 @@ export function useConversationStream({
   return {
     disconnect,
     isConnected,
+    isWaitingForInput,
     streamingMessage: streamingMessageRef.current,
   };
 }

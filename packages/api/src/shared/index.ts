@@ -69,6 +69,7 @@ export enum SSEEventType {
   FORCE_AGREEMENT_PHASE = 'force_agreement:phase',
   COALITION_DETECTED = 'coalition:detected',
   CREDIT_UPDATE = 'credit:update',
+  WAITING_FOR_INPUT = 'waiting:input',
   ERROR = 'error',
 }
 

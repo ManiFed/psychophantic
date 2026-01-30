@@ -19,6 +19,7 @@ interface ConversationsState {
   resumeConversation: (id: string) => Promise<void>;
   addInterjection: (id: string, content: string) => Promise<void>;
   startForceAgreement: (id: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   setCurrentConversation: (conversation: Conversation | null) => void;
@@ -189,6 +190,26 @@ export const useConversationsStore = create<ConversationsState>()((set, get) => 
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start force agreement';
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  deleteConversation: async (id: string) => {
+    const token = useAuthStore.getState().token;
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      await conversationsApi.delete(token, id);
+      set((state) => ({
+        conversations: state.conversations.filter((c) => c.id !== id),
+        currentConversation:
+          state.currentConversation?.id === id ? null : state.currentConversation,
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete conversation';
       set({ error: message });
       throw err;
     }

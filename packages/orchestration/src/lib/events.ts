@@ -93,6 +93,13 @@ export const events = {
     };
   },
 
+  waitingForInput(roundNumber: number) {
+    return {
+      type: SSEEventType.WAITING_FOR_INPUT as const,
+      data: { roundNumber },
+    };
+  },
+
   error(code: string, message: string) {
     return {
       type: SSEEventType.ERROR as const,

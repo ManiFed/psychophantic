@@ -199,6 +199,12 @@ export const conversationsApi = {
         body: JSON.stringify({}),
       }
     ),
+
+  delete: (token: string, id: string) =>
+    fetchApi<{ success: boolean }>(`/api/conversations/${id}`, {
+      token,
+      method: 'DELETE',
+    }),
 };
 
 // Credits API
