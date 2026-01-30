@@ -10,6 +10,12 @@ export const MAX_DEBATE_ROUNDS = 7;
 export const MIN_DEBATE_ROUNDS = 1;
 export const FORCE_AGREEMENT_MAX_ITERATIONS = 3;
 
+// Arena
+export const ARENA_MAX_PARTICIPANTS = 5;
+export const ARENA_MIN_PARTICIPANTS = 2;
+export const ARENA_DEFAULT_ROUNDS = 3;
+export const ARENA_MAX_ROUNDS = 7;
+
 // ============ Enums ============
 
 export enum ConversationMode {
