@@ -10,6 +10,7 @@ import { profileRoutes } from './routes/profiles.js';
 import { arenaRoutes } from './routes/arena.js';
 import { getQueueStats, getFailedJobs } from './lib/queue.js';
 import { redis, isRedisAvailable } from './lib/redis.js';
+import { prisma } from './lib/prisma.js';
 
 // =============================================================================
 // STARTUP ENVIRONMENT VALIDATION
