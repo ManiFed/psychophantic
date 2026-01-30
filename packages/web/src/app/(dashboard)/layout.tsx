@@ -78,6 +78,12 @@ export default function DashboardLayout({
               >
                 credits
               </Link>
+              <Link
+                href="/profile"
+                className="text-xs text-white/60 hover:text-white transition-colors"
+              >
+                profile
+              </Link>
             </nav>
           </div>
 
@@ -92,9 +98,12 @@ export default function DashboardLayout({
               </button>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-white/50 hidden sm:inline">
-                {user?.email}
-              </span>
+              <Link
+                href="/profile"
+                className="text-xs text-white/50 hover:text-white hidden sm:inline transition-colors"
+              >
+                {user?.username || user?.email}
+              </Link>
               <button
                 onClick={() => {
                   logout();

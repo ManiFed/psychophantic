@@ -82,7 +82,7 @@ async function fetchApi<T>(
 // Auth API
 export const authApi = {
   register: (email: string, password: string) =>
-    fetchApi<{ user: { id: string; email: string }; token: string }>(
+    fetchApi<{ user: { id: string; email: string; username: string | null }; token: string }>(
       '/api/auth/register',
       {
         method: 'POST',
@@ -91,7 +91,7 @@ export const authApi = {
     ),
 
   login: (email: string, password: string) =>
-    fetchApi<{ user: { id: string; email: string }; token: string }>(
+    fetchApi<{ user: { id: string; email: string; username: string | null }; token: string }>(
       '/api/auth/login',
       {
         method: 'POST',
@@ -100,7 +100,7 @@ export const authApi = {
     ),
 
   me: (token: string) =>
-    fetchApi<{ user: { id: string; email: string } }>('/api/auth/me', {
+    fetchApi<{ user: { id: string; email: string; username: string | null; noRateLimit: boolean } }>('/api/auth/me', {
       token,
     }),
 };
@@ -255,7 +255,7 @@ interface PublicAgent {
   isTemplate: boolean;
   templateUses: number;
   createdAt: string;
-  user: { email: string };
+  user: { email: string; username: string | null };
 }
 
 interface CreateAgentData {
@@ -276,6 +276,8 @@ interface OpenRouterModel {
   pricing: {
     prompt: number;
     completion: number;
+    promptPer1M?: number;
+    completionPer1M?: number;
   };
 }
 
@@ -340,6 +342,89 @@ interface CreditTransaction {
   createdAt: string;
 }
 
+// Profiles API
+export const profilesApi = {
+  updateProfile: (token: string, data: { username?: string }) =>
+    fetchApi<{ user: { id: string; email: string; username: string | null; noRateLimit: boolean } }>(
+      '/api/profiles/me',
+      {
+        token,
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }
+    ),
+
+  getPublicProfile: (username: string) =>
+    fetchApi<{
+      user: { id: string; username: string; createdAt: string };
+      agents: PublicAgent[];
+      conversations: PublicConversation[];
+    }>(`/api/profiles/${username}`),
+};
+
+// Agent Profiles API
+export const agentProfilesApi = {
+  getProfile: (agentId: string) =>
+    fetchApi<{
+      agent: AgentProfile;
+      conversations: PublicConversation[];
+    }>(`/api/agents/${agentId}/profile`),
+
+  addToLibrary: (token: string, agentId: string) =>
+    fetchApi<{ agent: Agent }>(`/api/agents/${agentId}/clone`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  remix: (token: string, agentId: string, overrides?: { name?: string; role?: string; systemPrompt?: string; model?: string }) =>
+    fetchApi<{ agent: Agent }>(`/api/agents/${agentId}/remix`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(overrides || {}),
+    }),
+};
+
+// Additional types
+interface AgentProfile {
+  id: string;
+  name: string;
+  model: string;
+  role: string;
+  systemPrompt: string | null;
+  avatarColor: string;
+  avatarUrl: string | null;
+  isPublic: boolean;
+  isTemplate: boolean;
+  templateUses: number;
+  createdAt: string;
+  creatorUsername: string | null;
+}
+
+interface PublicConversation {
+  id: string;
+  title: string | null;
+  mode: string;
+  status: string;
+  totalRounds: number | null;
+  currentRound: number;
+  isPublic: boolean;
+  publicSlug: string | null;
+  totalCostCents: number;
+  createdAt: string;
+  updatedAt: string;
+  participants: {
+    id: string;
+    agent: {
+      id: string;
+      name: string;
+      avatarColor: string;
+      avatarUrl: string | null;
+    };
+  }[];
+  _count: { messages: number };
+}
+
 export { ApiError };
 export type {
   Agent,
@@ -351,4 +436,6 @@ export type {
   Message,
   Participant,
   CreditTransaction,
+  AgentProfile,
+  PublicConversation,
 };

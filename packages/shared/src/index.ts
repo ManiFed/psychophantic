@@ -76,9 +76,17 @@ export enum SSEEventType {
 export interface User {
   id: string;
   email: string;
+  username: string | null;
+  noRateLimit: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Usernames that should have no rate limit (admin/VIP accounts)
+// Add usernames here to bypass rate limiting
+export const NO_RATE_LIMIT_USERNAMES: string[] = [
+  // Example: 'admin', 'founder', 'vip_user'
+];
 
 export interface Agent {
   id: string;

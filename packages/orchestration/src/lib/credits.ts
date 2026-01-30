@@ -8,10 +8,23 @@ type TransactionClient = Omit<
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
 
+export async function isRateLimitBypassed(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { noRateLimit: true },
+  });
+  return user?.noRateLimit === true;
+}
+
 export async function checkSufficientCredits(
   userId: string,
   minimumCents: number = 1
 ): Promise<boolean> {
+  // Users with noRateLimit bypass credit checks
+  if (await isRateLimitBypassed(userId)) {
+    return true;
+  }
+
   const balance = await prisma.creditBalance.findUnique({
     where: { userId },
   });
@@ -28,6 +41,18 @@ export async function deductCredits(
   amountCents: number,
   referenceId: string
 ): Promise<{ freeCents: number; purchasedCents: number; totalCents: number }> {
+  // Users with noRateLimit skip credit deduction
+  if (await isRateLimitBypassed(userId)) {
+    const balance = await prisma.creditBalance.findUnique({
+      where: { userId },
+    });
+    return {
+      freeCents: balance?.freeCreditsCents ?? 0,
+      purchasedCents: balance?.purchasedCreditsCents ?? 0,
+      totalCents: (balance?.freeCreditsCents ?? 0) + (balance?.purchasedCreditsCents ?? 0),
+    };
+  }
+
   const result = await prisma.$transaction(async (tx: TransactionClient) => {
     const balance = await tx.creditBalance.findUnique({
       where: { userId },

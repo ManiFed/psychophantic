@@ -5,6 +5,8 @@ import { authApi } from '@/lib/api';
 interface User {
   id: string;
   email: string;
+  username: string | null;
+  noRateLimit?: boolean;
 }
 
 interface AuthState {

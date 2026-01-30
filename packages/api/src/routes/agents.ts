@@ -77,24 +77,36 @@ async function fetchOpenRouterModels(): Promise<OpenRouterModel[]> {
 }
 
 export async function agentRoutes(server: FastifyInstance) {
-  // Get available models from OpenRouter
+  // Get available models from OpenRouter (full list with correct costs)
   server.get('/models', async () => {
     const models = await fetchOpenRouterModels();
 
-    // Transform to a simpler format for the frontend
-    const formattedModels = models.map((m) => ({
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      contextLength: m.context_length,
-      pricing: {
-        prompt: parseFloat(m.pricing.prompt),
-        completion: parseFloat(m.pricing.completion),
-      },
-    }));
+    // Transform to frontend format
+    // OpenRouter pricing is per-token in dollars
+    // We convert to per-1M-tokens for display
+    const formattedModels = models
+      .filter((m) => m.pricing && m.id && m.name)
+      .map((m) => {
+        const promptPerToken = parseFloat(m.pricing.prompt) || 0;
+        const completionPerToken = parseFloat(m.pricing.completion) || 0;
+        return {
+          id: m.id,
+          name: m.name,
+          description: m.description,
+          contextLength: m.context_length,
+          pricing: {
+            // Per-token costs (raw)
+            prompt: promptPerToken,
+            completion: completionPerToken,
+            // Per-1M-token costs for display
+            promptPer1M: promptPerToken * 1_000_000,
+            completionPer1M: completionPerToken * 1_000_000,
+          },
+        };
+      });
 
     // Sort by popularity/common usage
-    const popularProviders = ['anthropic', 'openai', 'google', 'meta-llama', 'mistralai'];
+    const popularProviders = ['anthropic', 'openai', 'google', 'meta-llama', 'mistralai', 'deepseek', 'cohere'];
     formattedModels.sort((a, b) => {
       const aProvider = a.id.split('/')[0];
       const bProvider = b.id.split('/')[0];
@@ -143,13 +155,141 @@ export async function agentRoutes(server: FastifyInstance) {
         templateUses: true,
         createdAt: true,
         user: {
-          select: { email: true },
+          select: { email: true, username: true },
         },
       },
     });
 
     return { agents };
   });
+
+  // Get public agent profile (no auth required)
+  server.get(
+    '/:agentId/profile',
+    async (
+      request: FastifyRequest<{ Params: { agentId: string } }>,
+      reply: FastifyReply
+    ) => {
+      const agent = await prisma.agent.findFirst({
+        where: {
+          id: request.params.agentId,
+          OR: [{ isPublic: true }, { isTemplate: true }],
+        },
+        include: {
+          user: {
+            select: { username: true },
+          },
+        },
+      });
+
+      if (!agent) {
+        return reply.status(404).send({ error: 'Agent not found' });
+      }
+
+      // Get public conversations this agent has been in
+      const participations = await prisma.conversationParticipant.findMany({
+        where: {
+          agentId: agent.id,
+          conversation: {
+            isPublic: true,
+          },
+        },
+        include: {
+          conversation: {
+            include: {
+              participants: {
+                include: {
+                  agent: {
+                    select: { id: true, name: true, avatarColor: true, avatarUrl: true },
+                  },
+                },
+              },
+              _count: { select: { messages: true } },
+            },
+          },
+        },
+        orderBy: {
+          conversation: { createdAt: 'desc' },
+        },
+        take: 20,
+      });
+
+      const conversations = participations.map((p) => p.conversation);
+
+      return {
+        agent: {
+          id: agent.id,
+          name: agent.name,
+          model: agent.model,
+          role: agent.role,
+          systemPrompt: agent.systemPrompt,
+          avatarColor: agent.avatarColor,
+          avatarUrl: agent.avatarUrl,
+          isPublic: agent.isPublic,
+          isTemplate: agent.isTemplate,
+          templateUses: agent.templateUses,
+          createdAt: agent.createdAt,
+          creatorUsername: agent.user.username,
+        },
+        conversations,
+      };
+    }
+  );
+
+  // Remix an agent (clone with modifications)
+  server.post(
+    '/:agentId/remix',
+    { preHandler: [authenticate] },
+    async (
+      request: FastifyRequest<{ Params: { agentId: string } }>,
+      reply: FastifyReply
+    ) => {
+      const sourceAgent = await prisma.agent.findFirst({
+        where: {
+          id: request.params.agentId,
+          OR: [
+            { userId: request.user.id },
+            { isPublic: true },
+            { isTemplate: true },
+          ],
+        },
+      });
+
+      if (!sourceAgent) {
+        return reply.status(404).send({ error: 'Agent not found' });
+      }
+
+      // Parse optional overrides from body
+      const body = (request.body || {}) as {
+        name?: string;
+        role?: string;
+        systemPrompt?: string;
+        model?: string;
+      };
+
+      const agent = await prisma.agent.create({
+        data: {
+          userId: request.user.id,
+          name: body.name || `${sourceAgent.name} (Remix)`,
+          model: body.model || sourceAgent.model,
+          role: body.role || sourceAgent.role,
+          systemPrompt: body.systemPrompt ?? sourceAgent.systemPrompt,
+          avatarColor: sourceAgent.avatarColor,
+          avatarUrl: sourceAgent.avatarUrl,
+        },
+      });
+
+      // Increment template uses
+      if (sourceAgent.isTemplate || sourceAgent.isPublic) {
+        await prisma.agent.update({
+          where: { id: sourceAgent.id },
+          data: { templateUses: { increment: 1 } },
+        });
+      }
+
+      return { agent };
+    }
+  );
 
   // Get single agent
   server.get(

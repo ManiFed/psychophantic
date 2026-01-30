@@ -134,10 +134,17 @@ export function AgentForm({ agent, onSubmit, isLoading }: AgentFormProps) {
     }
   };
 
-  const formatPrice = (price: number) => {
-    if (price === 0) return 'Free';
-    if (price < 0.001) return '<$0.001/1M';
-    return `$${price.toFixed(3)}/1M`;
+  const formatPricePer1M = (pricePer1M: number) => {
+    if (pricePer1M === 0) return 'Free';
+    if (pricePer1M < 0.01) return '<$0.01/1M';
+    if (pricePer1M < 1) return `$${pricePer1M.toFixed(2)}/1M`;
+    return `$${pricePer1M.toFixed(2)}/1M`;
+  };
+
+  const formatPrice = (perTokenPrice: number, per1MPrice?: number) => {
+    // Use pre-calculated per-1M price if available, otherwise calculate
+    const pricePer1M = per1MPrice ?? perTokenPrice * 1_000_000;
+    return formatPricePer1M(pricePer1M);
   };
 
   return (
@@ -261,7 +268,7 @@ export function AgentForm({ agent, onSubmit, isLoading }: AgentFormProps) {
               ) : filteredModels.length === 0 ? (
                 <div className="p-4 text-sm text-white/50">No models found</div>
               ) : (
-                filteredModels.slice(0, 50).map((model) => (
+                filteredModels.map((model) => (
                   <button
                     key={model.id}
                     type="button"
@@ -278,8 +285,8 @@ export function AgentForm({ agent, onSubmit, isLoading }: AgentFormProps) {
                     <div className="text-xs text-white/50 mt-0.5 flex items-center gap-2">
                       <span>{model.id}</span>
                       <span className="text-white/30">|</span>
-                      <span>{formatPrice(model.pricing.prompt)} in</span>
-                      <span>{formatPrice(model.pricing.completion)} out</span>
+                      <span>{formatPrice(model.pricing.prompt, model.pricing.promptPer1M)} in</span>
+                      <span>{formatPrice(model.pricing.completion, model.pricing.completionPer1M)} out</span>
                     </div>
                   </button>
                 ))
@@ -289,7 +296,7 @@ export function AgentForm({ agent, onSubmit, isLoading }: AgentFormProps) {
         </div>
         {selectedModel && !showModelDropdown && (
           <p className="text-xs text-white/30">
-            {formatPrice(selectedModel.pricing.prompt)} input, {formatPrice(selectedModel.pricing.completion)} output
+            {formatPrice(selectedModel.pricing.prompt, selectedModel.pricing.promptPer1M)} input, {formatPrice(selectedModel.pricing.completion, selectedModel.pricing.completionPer1M)} output
             {selectedModel.contextLength && ` | ${(selectedModel.contextLength / 1000).toFixed(0)}k context`}
           </p>
         )}

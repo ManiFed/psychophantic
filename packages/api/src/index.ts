@@ -6,6 +6,7 @@ import { agentRoutes } from './routes/agents.js';
 import { conversationRoutes } from './routes/conversations.js';
 import { creditRoutes } from './routes/credits.js';
 import { streamRoutes } from './routes/stream.js';
+import { profileRoutes } from './routes/profiles.js';
 import { getQueueStats, getFailedJobs } from './lib/queue.js';
 import { redis, isRedisAvailable } from './lib/redis.js';
 
@@ -191,6 +192,7 @@ await server.register(agentRoutes, { prefix: '/api/agents' });
 await server.register(conversationRoutes, { prefix: '/api/conversations' });
 await server.register(creditRoutes, { prefix: '/api/credits' });
 await server.register(streamRoutes, { prefix: '/api/conversations' });
+await server.register(profileRoutes, { prefix: '/api/profiles' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3001', 10);

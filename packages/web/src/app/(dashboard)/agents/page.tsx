@@ -130,6 +130,14 @@ export default function AgentsPage() {
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-3 border-t border-white/10">
+                  {agent.isPublic && (
+                    <Link
+                      href={`/agent/${agent.id}`}
+                      className="flex-1 text-center py-2 text-xs border border-white/10 hover:border-orange-500/50 hover:text-orange-500 transition-colors"
+                    >
+                      view profile
+                    </Link>
+                  )}
                   <Link
                     href={`/agents/${agent.id}/edit`}
                     className="flex-1 text-center py-2 text-xs border border-white/10 hover:border-orange-500/50 hover:text-orange-500 transition-colors"

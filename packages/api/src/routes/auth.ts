@@ -82,6 +82,7 @@ export async function authRoutes(server: FastifyInstance) {
         select: {
           id: true,
           email: true,
+          username: true,
         },
       });
 
@@ -127,7 +128,7 @@ export async function authRoutes(server: FastifyInstance) {
       const token = server.jwt.sign({ id: user.id, email: user.email });
 
       return {
-        user: { id: user.id, email: user.email },
+        user: { id: user.id, email: user.email, username: user.username },
         token,
       };
     } catch (err) {
@@ -154,6 +155,8 @@ export async function authRoutes(server: FastifyInstance) {
           select: {
             id: true,
             email: true,
+            username: true,
+            noRateLimit: true,
             createdAt: true,
           },
         });

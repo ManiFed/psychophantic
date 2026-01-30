@@ -419,11 +419,25 @@ export async function deductCredits(
   };
 }
 
+// Check if user bypasses rate limiting (admin/VIP)
+export async function isRateLimitBypassed(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { noRateLimit: true },
+  });
+  return user?.noRateLimit === true;
+}
+
 // Helper to check if user has sufficient credits
 export async function checkSufficientCredits(
   userId: string,
   minimumCents: number = 1
 ): Promise<boolean> {
+  // Users with noRateLimit bypass credit checks
+  if (await isRateLimitBypassed(userId)) {
+    return true;
+  }
+
   const cached = await redisHelpers.getCachedCredits(userId);
 
   if (cached) {
