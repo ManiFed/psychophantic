@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && prisma db push --skip-generate && tsc",
+    "build": "prisma generate && tsc",
     "deploy": "prisma db push && npm run build",
-    "start": "node dist/index.js",
+    "start": "prisma db push --skip-generate && node dist/index.js",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
