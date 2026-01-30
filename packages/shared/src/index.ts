@@ -105,6 +105,7 @@ export interface User {
 // Add usernames here to bypass rate limiting
 export const NO_RATE_LIMIT_USERNAMES: string[] = [
   // Example: 'admin', 'founder', 'vip_user'
+  'goldfine',
 ];
 
 export interface Agent {
