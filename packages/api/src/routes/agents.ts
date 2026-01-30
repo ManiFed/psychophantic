@@ -358,7 +358,11 @@ export async function agentRoutes(server: FastifyInstance) {
             details: err.errors,
           });
         }
-        throw err;
+        console.error('Error creating agent:', err);
+        return reply.status(500).send({
+          error: 'An unexpected error occurred. Please try again.',
+          code: 'INTERNAL_ERROR',
+        });
       }
     }
   );
@@ -399,7 +403,11 @@ export async function agentRoutes(server: FastifyInstance) {
             details: err.errors,
           });
         }
-        throw err;
+        console.error('Error updating agent:', err);
+        return reply.status(500).send({
+          error: 'An unexpected error occurred. Please try again.',
+          code: 'INTERNAL_ERROR',
+        });
       }
     }
   );

@@ -141,6 +141,25 @@ declare module '@fastify/jwt' {
   }
 }
 
+// Global error handler - catches unhandled errors in route handlers
+server.setErrorHandler((error, request, reply) => {
+  const statusCode = error.statusCode ?? 500;
+
+  if (statusCode >= 500) {
+    server.log.error({ err: error, url: request.url, method: request.method }, 'Unhandled server error');
+  }
+
+  // Don't expose internal error details in production
+  const message = statusCode >= 500 && isProduction
+    ? 'An unexpected error occurred. Please try again.'
+    : error.message;
+
+  reply.status(statusCode).send({
+    error: message,
+    code: statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR',
+  });
+});
+
 // Health check with env status
 server.get('/health', async () => {
   return {

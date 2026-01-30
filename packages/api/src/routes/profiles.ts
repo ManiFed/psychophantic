@@ -57,7 +57,11 @@ export async function profileRoutes(server: FastifyInstance) {
             details: err.errors,
           });
         }
-        throw err;
+        console.error('Error updating profile:', err);
+        return reply.status(500).send({
+          error: 'An unexpected error occurred. Please try again.',
+          code: 'INTERNAL_ERROR',
+        });
       }
     }
   );

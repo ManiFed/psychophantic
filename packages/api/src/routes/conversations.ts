@@ -167,7 +167,11 @@ export async function conversationRoutes(server: FastifyInstance) {
             details: err.errors,
           });
         }
-        throw err;
+        console.error('Error creating conversation:', err);
+        return reply.status(500).send({
+          error: 'An unexpected error occurred. Please try again.',
+          code: 'INTERNAL_ERROR',
+        });
       }
     }
   );
@@ -369,7 +373,11 @@ export async function conversationRoutes(server: FastifyInstance) {
             details: err.errors,
           });
         }
-        throw err;
+        console.error('Error adding interjection:', err);
+        return reply.status(500).send({
+          error: 'An unexpected error occurred. Please try again.',
+          code: 'INTERNAL_ERROR',
+        });
       }
     }
   );
