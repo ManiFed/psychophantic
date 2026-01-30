@@ -72,6 +72,12 @@ export default function DashboardLayout({
               >
                 conversations
               </Link>
+              <Link
+                href="/credits"
+                className="text-xs text-white/60 hover:text-white transition-colors"
+              >
+                credits
+              </Link>
             </nav>
           </div>
 

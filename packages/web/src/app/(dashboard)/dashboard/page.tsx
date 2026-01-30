@@ -3,19 +3,23 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAgentsStore } from '@/stores/agents';
+import { useConversationsStore } from '@/stores/conversations';
 import { useCreditsStore, formatCents } from '@/stores/credits';
 
 export default function DashboardPage() {
   const { agents, fetchAgents, isLoading: agentsLoading } = useAgentsStore();
-  const { totalCents, freeCents, purchasedCents, fetchBalance, isLoading: creditsLoading } = useCreditsStore();
+  const { conversations, fetchConversations, isLoading: conversationsLoading } = useConversationsStore();
+  const { totalCents, freeCents, fetchBalance, isLoading: creditsLoading } = useCreditsStore();
 
   useEffect(() => {
     fetchAgents();
+    fetchConversations();
     fetchBalance();
-  }, [fetchAgents, fetchBalance]);
+  }, [fetchAgents, fetchConversations, fetchBalance]);
 
   // Get 3 most recent agents for display
   const recentAgents = agents.slice(0, 3);
+  const recentConversations = conversations.slice(0, 3);
 
   return (
     <div className="space-y-10">
@@ -107,14 +111,56 @@ export default function DashboardPage() {
 
       {/* Recent Conversations */}
       <div>
-        <h2 className="text-sm font-medium mb-4">recent conversations</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-medium">recent conversations</h2>
+          {conversations.length > 0 && (
+            <Link href="/conversations" className="text-xs text-orange-500 hover:text-orange-400 transition-colors">
+              view all →
+            </Link>
+          )}
+        </div>
         <div className="border border-white/10">
-          <div className="p-8 text-center">
-            <p className="text-xs text-white/50">no conversations yet.</p>
-            <p className="mt-2 text-xs text-white/30">
-              create some agents and start your first debate!
-            </p>
-          </div>
+          {conversationsLoading ? (
+            <div className="p-8 text-center">
+              <p className="text-xs text-white/50">loading conversations...</p>
+            </div>
+          ) : recentConversations.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-xs text-white/50">no conversations yet.</p>
+              <p className="mt-2 text-xs text-white/30">
+                create some agents and{' '}
+                <Link href="/conversations/new" className="text-orange-500 hover:text-orange-400">
+                  start your first debate
+                </Link>
+                !
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/10">
+              {recentConversations.map((conv) => (
+                <Link
+                  key={conv.id}
+                  href={`/conversations/${conv.id}`}
+                  className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {conv.title || 'Untitled Conversation'}
+                    </p>
+                    <p className="text-xs text-white/50">
+                      {conv.mode} · {conv.status}
+                      {conv.mode === 'debate' && conv.totalRounds
+                        ? ` · round ${conv.currentRound}/${conv.totalRounds}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="text-xs text-white/30">
+                    ${(conv.totalCostCents / 100).toFixed(2)}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -128,7 +174,9 @@ export default function DashboardPage() {
         </div>
         <div className="border border-white/10 bg-white/5 p-4">
           <p className="text-xs text-white/50">conversations</p>
-          <p className="mt-1 text-xl font-bold">0</p>
+          <p className="mt-1 text-xl font-bold">
+            {conversationsLoading ? '—' : conversations.length}
+          </p>
         </div>
         <div className="border border-white/10 bg-white/5 p-4">
           <p className="text-xs text-white/50">free credits</p>
