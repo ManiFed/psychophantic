@@ -38,7 +38,7 @@ export default function DashboardPage() {
         >
           <div className="text-xs text-orange-500 mb-1">01</div>
           <h3 className="text-sm font-medium mb-1">create an agent</h3>
-          <p className="text-xs text-white/50">build ai agents with unique personalities.</p>
+          <p className="text-xs text-white/50">unleash a new competitor.</p>
         </Link>
         <Link
           href="/conversations/new?mode=debate"
