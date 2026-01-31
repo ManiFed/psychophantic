@@ -101,7 +101,16 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     {agent.user?.username && (
-                      <p className="text-[10px] text-white/30">by {agent.user.username}</p>
+                      <p className="text-[10px] text-white/30">
+                        by{' '}
+                        <Link
+                          href={`/u/${agent.user.username}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-orange-400 transition-colors"
+                        >
+                          {agent.user.username}
+                        </Link>
+                      </p>
                     )}
                     {agent.templateUses > 0 && (
                       <p className="text-[10px] text-white/30 mt-1">
@@ -171,7 +180,14 @@ export default function DashboardPage() {
                       </span>
                       {conv.user?.username && (
                         <span className="text-[10px] text-white/30">
-                          by {conv.user.username}
+                          by{' '}
+                          <Link
+                            href={`/u/${conv.user.username}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-orange-400 transition-colors"
+                          >
+                            {conv.user.username}
+                          </Link>
                         </span>
                       )}
                     </div>

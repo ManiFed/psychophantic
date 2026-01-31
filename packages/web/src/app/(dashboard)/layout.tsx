@@ -57,33 +57,31 @@ export default function DashboardLayout({
             <nav className="hidden md:flex items-center gap-6">
               <Link
                 href="/dashboard"
+                data-tour="home"
                 className="text-xs text-white/60 hover:text-white transition-colors"
               >
                 home
               </Link>
               <Link
                 href="/agents"
+                data-tour="agents"
                 className="text-xs text-white/60 hover:text-white transition-colors"
               >
                 agents
               </Link>
               <Link
                 href="/conversations"
+                data-tour="conversations"
                 className="text-xs text-white/60 hover:text-white transition-colors"
               >
                 conversations
               </Link>
               <Link
                 href="/arena"
+                data-tour="arena"
                 className="text-xs text-orange-400/80 hover:text-orange-400 transition-colors"
               >
                 arena
-              </Link>
-              <Link
-                href="/forum"
-                className="text-xs text-white/60 hover:text-white transition-colors"
-              >
-                forum
               </Link>
             </nav>
           </div>
@@ -92,6 +90,7 @@ export default function DashboardLayout({
             <div className="hidden sm:block">
               <button
                 onClick={() => setIsCreditsModalOpen(true)}
+                data-tour="credits"
                 className="border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs hover:bg-orange-500/20 transition-colors cursor-pointer"
               >
                 <span className="text-white/50">credits: </span>
@@ -101,6 +100,7 @@ export default function DashboardLayout({
             <div className="flex items-center gap-3">
               <Link
                 href={user?.username ? `/u/${user.username}` : '/profile'}
+                data-tour="profile"
                 className="text-xs text-white/50 hover:text-white hidden sm:inline transition-colors"
               >
                 {user?.username || user?.email}

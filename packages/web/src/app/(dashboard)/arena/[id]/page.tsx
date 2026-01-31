@@ -15,20 +15,26 @@ interface StreamingMessage extends Message {
 
 export default function ArenaRoomPage() {
   const { id } = useParams<{ id: string }>();
-  const { currentRoom, fetchRoom, joinRoom, leaveRoom, toggleReady, startRoom, sendInstruction, isLoading } = useArenaStore();
+  const { currentRoom, fetchRoom, joinRoom, leaveRoom, toggleReady, startRoom, sendInstruction, closeRoom, isLoading } = useArenaStore();
   const user = useAuthStore((s) => s.user);
   const { agents, fetchAgents } = useAgentsStore();
 
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [instruction, setInstruction] = useState('');
+  const [instructionConfirmed, setInstructionConfirmed] = useState(false);
   const [messages, setMessages] = useState<StreamingMessage[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string | null>(null);
   const [currentRound, setCurrentRound] = useState(1);
   const [isComplete, setIsComplete] = useState(false);
+  const [isRoundPause, setIsRoundPause] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kickCountdown, setKickCountdown] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const kickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const myParticipant = currentRoom?.participants.find((p) => p.userId === user?.id);
   const isCreator = currentRoom?.createdById === user?.id;
@@ -38,6 +44,10 @@ export default function ArenaRoomPage() {
   useEffect(() => {
     fetchRoom(id);
     fetchAgents();
+    return () => {
+      useArenaStore.setState({ currentRoom: null });
+      if (kickTimerRef.current) clearInterval(kickTimerRef.current);
+    };
   }, [id, fetchRoom, fetchAgents]);
 
   // Load conversation messages when room has a conversation
@@ -46,12 +56,46 @@ export default function ArenaRoomPage() {
       setMessages(currentRoom.conversation.messages || []);
       setParticipants(currentRoom.conversation.participants || []);
     }
-  }, [currentRoom?.conversation]);
+    if (currentRoom?.status === 'completed' || currentRoom?.status === 'cancelled') {
+      setIsComplete(true);
+    }
+  }, [currentRoom?.conversation, currentRoom?.status]);
 
-  // Auto-scroll to bottom
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    isNearBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
+
+  // Kick countdown timer for round pauses
+  useEffect(() => {
+    if (isRoundPause && myParticipant) {
+      setKickCountdown(60);
+      kickTimerRef.current = setInterval(() => {
+        setKickCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            if (kickTimerRef.current) clearInterval(kickTimerRef.current);
+            toggleReady(id);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => {
+        if (kickTimerRef.current) clearInterval(kickTimerRef.current);
+      };
+    } else {
+      setKickCountdown(null);
+      if (kickTimerRef.current) clearInterval(kickTimerRef.current);
+    }
+  }, [isRoundPause, myParticipant, id, toggleReady]);
 
   // Arena stream callbacks
   const onParticipantJoined = useCallback(() => {
@@ -68,26 +112,30 @@ export default function ArenaRoomPage() {
 
   const onMessageStart = useCallback((data: { agentId: string; messageId: string }) => {
     setCurrentAgent(data.agentId);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: data.messageId,
-        conversationId: '',
-        agentId: data.agentId,
-        userId: null,
-        content: '',
-        role: 'agent' as const,
-        roundNumber: currentRound,
-        modelUsed: null,
-        inputTokens: null,
-        outputTokens: null,
-        costCents: 0,
-        generationTimeMs: null,
-        messageType: 'standard',
-        createdAt: new Date().toISOString(),
-        isStreaming: true,
-      },
-    ]);
+    setIsRoundPause(false);
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === data.messageId)) return prev;
+      return [
+        ...prev,
+        {
+          id: data.messageId,
+          conversationId: '',
+          agentId: data.agentId,
+          userId: null,
+          content: '',
+          role: 'agent' as const,
+          roundNumber: currentRound,
+          modelUsed: null,
+          inputTokens: null,
+          outputTokens: null,
+          costCents: 0,
+          generationTimeMs: null,
+          messageType: 'standard',
+          createdAt: new Date().toISOString(),
+          isStreaming: true,
+        },
+      ];
+    });
   }, [currentRound]);
 
   const onMessageToken = useCallback((data: { messageId: string; token: string }) => {
@@ -124,12 +172,17 @@ export default function ArenaRoomPage() {
   }, []);
 
   const onRoundComplete = useCallback(() => {
-    // Round complete - in arena, auto-resume after short pause
+    setIsRoundPause(true);
+  }, []);
+
+  const onWaitingForInput = useCallback(() => {
+    setIsRoundPause(true);
   }, []);
 
   const onConversationComplete = useCallback(() => {
     setIsComplete(true);
     setCurrentAgent(null);
+    setIsRoundPause(false);
     fetchRoom(id);
   }, [id, fetchRoom]);
 
@@ -143,6 +196,7 @@ export default function ArenaRoomPage() {
     onTurnChange,
     onRoundComplete,
     onConversationComplete,
+    onWaitingForInput,
   });
 
   const getAgentName = (agentId: string | null) => {
@@ -183,6 +237,11 @@ export default function ArenaRoomPage() {
     setActionLoading(true);
     try {
       await toggleReady(id);
+      if (isRoundPause) {
+        setIsRoundPause(false);
+        setKickCountdown(null);
+        if (kickTimerRef.current) clearInterval(kickTimerRef.current);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -203,11 +262,28 @@ export default function ArenaRoomPage() {
   const handleInstruction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!instruction.trim()) return;
+    setInstructionConfirmed(false);
     try {
-      await sendInstruction(id, instruction);
+      const result = await sendInstruction(id, instruction);
       setInstruction('');
+      if (result.confirmed) {
+        setInstructionConfirmed(true);
+        setTimeout(() => setInstructionConfirmed(false), 3000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send instruction');
+    }
+  };
+
+  const handleClose = async () => {
+    if (!confirm('End this arena early? The debate will be marked as complete.')) return;
+    setActionLoading(true);
+    try {
+      await closeRoom(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to close arena');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -232,6 +308,15 @@ export default function ArenaRoomPage() {
             <p className="text-xs text-white/40 mt-0.5">{currentRoom.topic}</p>
           </div>
           <div className="flex items-center gap-3">
+            {isActive && (myParticipant || isCreator) && (
+              <button
+                onClick={handleClose}
+                disabled={actionLoading}
+                className="text-[10px] text-white/30 hover:text-red-400 border border-white/10 hover:border-red-400/30 px-2 py-1 transition-colors"
+              >
+                end early
+              </button>
+            )}
             <span className="text-[10px] text-white/30 font-mono">
               {currentRoom.totalRounds} rounds
             </span>
@@ -319,7 +404,7 @@ export default function ArenaRoomPage() {
                   <select
                     value={selectedAgentId}
                     onChange={(e) => setSelectedAgentId(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                    className="flex-1 bg-black border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 [&>option]:bg-black [&>option]:text-white"
                   >
                     <option value="">Select your agent...</option>
                     {agents.map((a) => (
@@ -380,7 +465,7 @@ export default function ArenaRoomPage() {
       )}
 
       {/* Active/Completed State - Live Debate */}
-      {(isActive || currentRoom.status === 'completed') && (
+      {(isActive || currentRoom.status === 'completed' || currentRoom.status === 'cancelled') && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Status bar */}
           <div className="flex items-center gap-4 mb-3 text-[10px] text-white/30">
@@ -392,10 +477,37 @@ export default function ArenaRoomPage() {
               </span>
             )}
             {isComplete && <span className="text-white/50">Debate complete</span>}
+            {isRoundPause && !isComplete && (
+              <span className="text-orange-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                Round pause — instruct your agent, then click ready
+              </span>
+            )}
           </div>
 
+          {/* Round pause banner with kick timer */}
+          {isRoundPause && !isComplete && myParticipant && (
+            <div className="border border-orange-500/30 bg-orange-500/5 p-3 mb-3 flex items-center justify-between">
+              <div className="text-xs text-orange-400">
+                Give your agent instructions below, then click <strong>ready</strong> to continue.
+                {kickCountdown !== null && (
+                  <span className="ml-2 text-white/40">
+                    Auto-ready in {kickCountdown}s
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleReady}
+                disabled={actionLoading}
+                className="bg-orange-500 hover:bg-orange-600 text-black text-xs font-medium px-4 py-1.5 transition-colors ml-3 flex-shrink-0"
+              >
+                ready
+              </button>
+            </div>
+          )}
+
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto border border-white/10 p-4 space-y-4 min-h-0">
+          <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto border border-white/10 p-4 space-y-4 min-h-0">
             {messages.map((msg) => {
               if (msg.role === 'system') {
                 return (
@@ -439,25 +551,33 @@ export default function ArenaRoomPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Instruction input (only for active arena participants) */}
+          {/* Instruction input (for active arena participants) */}
           {isActive && myParticipant && !isComplete && (
-            <form onSubmit={handleInstruction} className="mt-3 flex gap-2">
-              <input
-                type="text"
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Give your agent instructions..."
-                className="flex-1 bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50"
-                maxLength={2000}
-              />
-              <button
-                type="submit"
-                disabled={!instruction.trim()}
-                className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/30 text-black text-xs font-medium px-4 py-2 transition-colors"
-              >
-                Instruct
-              </button>
-            </form>
+            <div className="mt-3">
+              {instructionConfirmed && (
+                <div className="text-xs text-green-400 mb-2 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  Instruction received! Your agent will use it in the next turn.
+                </div>
+              )}
+              <form onSubmit={handleInstruction} className="flex gap-2">
+                <input
+                  type="text"
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  placeholder="Give your agent instructions..."
+                  className="flex-1 bg-white/5 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                  maxLength={2000}
+                />
+                <button
+                  type="submit"
+                  disabled={!instruction.trim()}
+                  className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/30 text-black text-xs font-medium px-4 py-2 transition-colors"
+                >
+                  Instruct
+                </button>
+              </form>
+            </div>
           )}
         </div>
       )}

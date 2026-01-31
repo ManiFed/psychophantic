@@ -525,10 +525,17 @@ export const arenaApi = {
     }),
 
   instruct: (token: string, id: string, content: string) =>
-    fetchApi<{ instruction: ArenaInstructionData }>(`/api/arena/${id}/instruct`, {
+    fetchApi<{ instruction: ArenaInstructionData; confirmed: boolean }>(`/api/arena/${id}/instruct`, {
       token,
       method: 'POST',
       body: JSON.stringify({ content }),
+    }),
+
+  close: (token: string, id: string) =>
+    fetchApi<{ success: boolean }>(`/api/arena/${id}/close`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
 
   delete: (token: string, id: string) =>
