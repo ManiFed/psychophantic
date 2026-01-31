@@ -6,6 +6,8 @@ interface User {
   id: string;
   email: string;
   username: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
   noRateLimit?: boolean;
 }
 
@@ -17,7 +19,7 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
   clearError: () => void;
@@ -52,10 +54,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email: string, password: string) => {
+      register: async (email: string, password: string, username: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.register(email, password);
+          const response = await authApi.register(email, password, username);
           set({
             user: response.user,
             token: response.token,

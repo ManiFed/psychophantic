@@ -6,17 +6,19 @@ import { useAuthStore } from '@/stores/auth';
 import { profilesApi } from '@/lib/api';
 
 export default function ProfilePage() {
-  const { user, checkAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const [username, setUsername] = useState(user?.username || '');
+  const [bio, setBio] = useState(user?.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (user?.username) {
-      setUsername(user.username);
-    }
-  }, [user?.username]);
+    if (user?.username) setUsername(user.username);
+    if (user?.bio) setBio(user.bio);
+    if (user?.avatarUrl) setAvatarUrl(user.avatarUrl);
+  }, [user?.username, user?.bio, user?.avatarUrl]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +30,11 @@ export default function ProfilePage() {
 
     setSaving(true);
     try {
-      const response = await profilesApi.updateProfile(token, { username: username.trim() });
+      const response = await profilesApi.updateProfile(token, {
+        username: username.trim() || undefined,
+        bio: bio.trim(),
+        avatarUrl: avatarUrl.trim() || null,
+      });
       useAuthStore.setState({ user: response.user });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -42,9 +48,9 @@ export default function ProfilePage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">profile</h1>
+        <h1 className="text-2xl font-bold">edit profile</h1>
         <p className="mt-1 text-xs text-white/50">
-          set your username to create a public profile page.
+          customize your public profile.
         </p>
       </div>
 
@@ -87,6 +93,47 @@ export default function ProfilePage() {
           <p className="text-xs text-white/30">
             3-30 characters. letters, numbers, underscores, and hyphens only.
           </p>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="bio" className="text-xs text-white/70">bio</label>
+          <textarea
+            id="bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="tell people about yourself"
+            maxLength={300}
+            rows={3}
+            className="w-full bg-white/5 border border-white/10 px-4 py-3 text-sm placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 transition-colors resize-y"
+          />
+          <p className="text-xs text-white/30">{bio.length}/300</p>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="avatarUrl" className="text-xs text-white/70">avatar image url</label>
+          <input
+            id="avatarUrl"
+            type="text"
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            placeholder="https://example.com/your-avatar.jpg"
+            className="w-full bg-white/5 border border-white/10 px-4 py-3 text-sm placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 transition-colors"
+          />
+          {avatarUrl && (
+            <div className="flex items-center gap-3 mt-2">
+              <div className="w-16 h-16 bg-white/5 border border-white/10 overflow-hidden">
+                <img
+                  src={avatarUrl}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+              <p className="text-xs text-white/30">preview</p>
+            </div>
+          )}
         </div>
 
         {user?.username && (

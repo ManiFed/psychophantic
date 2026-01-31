@@ -1,35 +1,87 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { profilesApi, PublicAgent, PublicConversation } from '@/lib/api';
+import { profilesApi, type PublicAgent, type PublicConversation, type PublicProfileUser, type FollowUser } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
 
 export default function PublicProfilePage() {
   const params = useParams();
   const username = params.username as string;
+  const currentUser = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
 
   const [profile, setProfile] = useState<{
-    user: { id: string; username: string; createdAt: string };
+    user: PublicProfileUser;
     agents: PublicAgent[];
     conversations: PublicConversation[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [showFollowing, setShowFollowing] = useState(false);
+  const [followerList, setFollowerList] = useState<FollowUser[]>([]);
+  const [followingList, setFollowingList] = useState<FollowUser[]>([]);
+
+  const isOwnProfile = currentUser?.username === username;
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const data = await profilesApi.getPublicProfile(username);
+      setProfile(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'User not found');
+    } finally {
+      setLoading(false);
+    }
+  }, [username]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await profilesApi.getPublicProfile(username);
-        setProfile(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'User not found');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchProfile();
-  }, [username]);
+  }, [fetchProfile]);
+
+  const handleFollow = async () => {
+    if (!token || !profile) return;
+    setFollowLoading(true);
+    try {
+      if (profile.user.isFollowing) {
+        await profilesApi.unfollow(token, profile.user.id);
+      } else {
+        await profilesApi.follow(token, profile.user.id);
+      }
+      await fetchProfile();
+    } catch {
+      // ignore
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const loadFollowers = async () => {
+    if (!profile) return;
+    try {
+      const data = await profilesApi.getFollowers(profile.user.id);
+      setFollowerList(data.users);
+      setShowFollowers(true);
+      setShowFollowing(false);
+    } catch {
+      // ignore
+    }
+  };
+
+  const loadFollowing = async () => {
+    if (!profile) return;
+    try {
+      const data = await profilesApi.getFollowing(profile.user.id);
+      setFollowingList(data.users);
+      setShowFollowing(true);
+      setShowFollowers(false);
+    } catch {
+      // ignore
+    }
+  };
 
   if (loading) {
     return (
@@ -52,18 +104,156 @@ export default function PublicProfilePage() {
     <div className="space-y-8">
       {/* Profile Header */}
       <div className="border border-white/10 bg-white/5 p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-orange-500 flex items-center justify-center text-2xl font-bold text-black">
-            {profile.user.username.charAt(0).toUpperCase()}
+        <div className="flex items-start gap-4">
+          <div className="w-16 h-16 bg-orange-500 flex items-center justify-center text-2xl font-bold text-black flex-shrink-0 overflow-hidden">
+            {profile.user.avatarUrl ? (
+              <img
+                src={profile.user.avatarUrl}
+                alt={profile.user.username}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              profile.user.username.charAt(0).toUpperCase()
+            )}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{profile.user.username}</h1>
-            <p className="text-xs text-white/50">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold">{profile.user.username}</h1>
+              {profile.user.badges.map((badge) => (
+                <span
+                  key={badge.type}
+                  className={`text-[10px] px-2 py-0.5 font-mono border ${
+                    badge.type === 'staff'
+                      ? 'text-orange-400 border-orange-400/30 bg-orange-400/10'
+                      : 'text-blue-400 border-blue-400/30 bg-blue-400/10'
+                  }`}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+            {profile.user.bio && (
+              <p className="text-sm text-white/70 mt-1">{profile.user.bio}</p>
+            )}
+            <p className="text-xs text-white/40 mt-1">
               joined {new Date(profile.user.createdAt).toLocaleDateString()}
             </p>
+
+            {/* Stats */}
+            <div className="flex items-center gap-4 mt-3 text-xs">
+              <button
+                onClick={loadFollowers}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <span className="font-medium text-white">{profile.user.followerCount}</span> followers
+              </button>
+              <button
+                onClick={loadFollowing}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <span className="font-medium text-white">{profile.user.followingCount}</span> following
+              </button>
+              <span className="text-white/40">
+                {profile.user.agentCount} agents
+              </span>
+              <span className="text-white/40">
+                {profile.user.conversationCount} conversations
+              </span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isOwnProfile ? (
+              <Link
+                href="/profile"
+                className="border border-white/20 px-4 py-2 text-xs hover:border-white/40 transition-colors"
+              >
+                edit profile
+              </Link>
+            ) : token ? (
+              <button
+                onClick={handleFollow}
+                disabled={followLoading}
+                className={`px-4 py-2 text-xs font-medium transition-colors ${
+                  profile.user.isFollowing
+                    ? 'border border-white/20 text-white/70 hover:border-red-500/50 hover:text-red-400'
+                    : 'bg-orange-500 text-black hover:bg-orange-400'
+                }`}
+              >
+                {followLoading
+                  ? '...'
+                  : profile.user.isFollowing
+                  ? 'following'
+                  : 'follow'}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
+
+      {/* Follower / Following Lists */}
+      {(showFollowers || showFollowing) && (
+        <div className="border border-white/10 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs text-white/60 font-medium">
+              {showFollowers ? 'followers' : 'following'}
+            </h3>
+            <button
+              onClick={() => {
+                setShowFollowers(false);
+                setShowFollowing(false);
+              }}
+              className="text-xs text-white/40 hover:text-white"
+            >
+              close
+            </button>
+          </div>
+          <div className="space-y-2">
+            {(showFollowers ? followerList : followingList).length === 0 ? (
+              <p className="text-xs text-white/40">none yet.</p>
+            ) : (
+              (showFollowers ? followerList : followingList).map((u) => (
+                <Link
+                  key={u.id}
+                  href={u.username ? `/u/${u.username}` : '#'}
+                  className="flex items-center gap-3 p-2 hover:bg-white/5 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-orange-500/80 flex items-center justify-center text-xs font-bold text-black overflow-hidden flex-shrink-0">
+                    {u.avatarUrl ? (
+                      <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (u.username || '?').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium truncate">
+                        {u.username || 'anonymous'}
+                      </span>
+                      {u.badges?.map((b) => (
+                        <span
+                          key={b.type}
+                          className={`text-[9px] px-1 py-px font-mono ${
+                            b.type === 'staff'
+                              ? 'text-orange-400'
+                              : 'text-blue-400'
+                          }`}
+                        >
+                          {b.label}
+                        </span>
+                      ))}
+                    </div>
+                    {u.bio && (
+                      <p className="text-[10px] text-white/40 truncate">{u.bio}</p>
+                    )}
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Public Agents */}
       <div>

@@ -8,6 +8,14 @@ import { DAILY_FREE_CREDITS_CENTS } from '../shared/index.js';
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(30, 'Username must be at most 30 characters')
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      'Username can only contain letters, numbers, underscores, and hyphens'
+    ),
 });
 
 const loginSchema = z.object({
@@ -81,13 +89,22 @@ export async function authRoutes(server: FastifyInstance) {
     try {
       const body = registerSchema.parse(request.body);
 
-      // Check if user exists
+      // Check if email exists
       const existingUser = await prisma.user.findUnique({
         where: { email: body.email },
       });
 
       if (existingUser) {
         return reply.status(400).send({ error: 'Email already registered' });
+      }
+
+      // Check if username is taken
+      const existingUsername = await prisma.user.findUnique({
+        where: { username: body.username },
+      });
+
+      if (existingUsername) {
+        return reply.status(400).send({ error: 'Username already taken' });
       }
 
       // Hash password
@@ -97,6 +114,7 @@ export async function authRoutes(server: FastifyInstance) {
       const user = await prisma.user.create({
         data: {
           email: body.email,
+          username: body.username,
           passwordHash,
           creditBalance: {
             create: {
@@ -216,6 +234,8 @@ export async function authRoutes(server: FastifyInstance) {
             id: true,
             email: true,
             username: true,
+            bio: true,
+            avatarUrl: true,
             noRateLimit: true,
             createdAt: true,
           },

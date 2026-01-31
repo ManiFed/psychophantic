@@ -81,12 +81,12 @@ async function fetchApi<T>(
 
 // Auth API
 export const authApi = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, username: string) =>
     fetchApi<{ user: { id: string; email: string; username: string | null }; token: string }>(
       '/api/auth/register',
       {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, username }),
       }
     ),
 
@@ -100,7 +100,7 @@ export const authApi = {
     ),
 
   me: (token: string) =>
-    fetchApi<{ user: { id: string; email: string; username: string | null; noRateLimit: boolean } }>('/api/auth/me', {
+    fetchApi<{ user: { id: string; email: string; username: string | null; bio: string | null; avatarUrl: string | null; noRateLimit: boolean } }>('/api/auth/me', {
       token,
     }),
 };
@@ -344,8 +344,8 @@ interface CreditTransaction {
 
 // Profiles API
 export const profilesApi = {
-  updateProfile: (token: string, data: { username?: string }) =>
-    fetchApi<{ user: { id: string; email: string; username: string | null; noRateLimit: boolean } }>(
+  updateProfile: (token: string, data: { username?: string; bio?: string; avatarUrl?: string | null }) =>
+    fetchApi<{ user: { id: string; email: string; username: string | null; bio: string | null; avatarUrl: string | null; noRateLimit: boolean } }>(
       '/api/profiles/me',
       {
         token,
@@ -356,10 +356,66 @@ export const profilesApi = {
 
   getPublicProfile: (username: string) =>
     fetchApi<{
-      user: { id: string; username: string; createdAt: string };
+      user: PublicProfileUser;
       agents: PublicAgent[];
       conversations: PublicConversation[];
     }>(`/api/profiles/${username}`),
+
+  follow: (token: string, userId: string) =>
+    fetchApi<{ success: boolean }>(`/api/profiles/${userId}/follow`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  unfollow: (token: string, userId: string) =>
+    fetchApi<{ success: boolean }>(`/api/profiles/${userId}/follow`, {
+      token,
+      method: 'DELETE',
+    }),
+
+  getFollowers: (userId: string) =>
+    fetchApi<{ users: FollowUser[] }>(`/api/profiles/${userId}/followers`),
+
+  getFollowing: (userId: string) =>
+    fetchApi<{ users: FollowUser[] }>(`/api/profiles/${userId}/following`),
+};
+
+// Forum API
+export const forumApi = {
+  listThreads: (page?: number) =>
+    fetchApi<{ threads: ForumThread[]; total: number; page: number; totalPages: number }>(
+      `/api/forum/threads${page ? `?page=${page}` : ''}`
+    ),
+
+  getThread: (id: string) =>
+    fetchApi<{ thread: ForumThreadFull }>(`/api/forum/threads/${id}`),
+
+  createThread: (token: string, data: { title: string; content: string }) =>
+    fetchApi<{ thread: ForumThread }>('/api/forum/threads', {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  createPost: (token: string, threadId: string, content: string) =>
+    fetchApi<{ post: ForumPostData }>(`/api/forum/threads/${threadId}/posts`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+
+  deleteThread: (token: string, id: string) =>
+    fetchApi<{ success: boolean }>(`/api/forum/threads/${id}`, {
+      token,
+      method: 'DELETE',
+    }),
+};
+
+// Feed API
+export const feedApi = {
+  getFeed: () =>
+    fetchApi<FeedData>('/api/feed'),
 };
 
 // Agent Profiles API
@@ -538,6 +594,69 @@ interface ArenaInstructionData {
   createdAt: string;
 }
 
+// Profile types
+interface UserBadge {
+  type: 'verified' | 'staff';
+  label: string;
+}
+
+interface PublicProfileUser {
+  id: string;
+  username: string;
+  bio: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  badges: UserBadge[];
+  isFollowing: boolean;
+  followerCount: number;
+  followingCount: number;
+  agentCount: number;
+  conversationCount: number;
+}
+
+interface FollowUser {
+  id: string;
+  username: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  badges: UserBadge[];
+}
+
+// Forum types
+interface ForumThread {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: string; username: string | null; avatarUrl: string | null; badges?: UserBadge[] };
+  _count: { posts: number };
+}
+
+interface ForumPostData {
+  id: string;
+  threadId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: string; username: string | null; avatarUrl: string | null; badges?: UserBadge[] };
+}
+
+interface ForumThreadFull extends ForumThread {
+  posts: ForumPostData[];
+}
+
+// Feed types
+interface FeedData {
+  trendingAgents: (PublicAgent & { user: { id: string; username: string | null; badges?: UserBadge[] } | null })[];
+  trendingConversations: (PublicConversation & { user: { id: string; username: string | null; badges?: UserBadge[] } | null })[];
+  activeArenas: ArenaRoomWithDetails[];
+  recentThreads: ForumThread[];
+}
+
 export { ApiError };
 export type {
   Agent,
@@ -557,4 +676,11 @@ export type {
   ArenaParticipantWithDetails,
   ArenaInstructionData,
   CreateArenaData,
+  UserBadge,
+  PublicProfileUser,
+  FollowUser,
+  ForumThread,
+  ForumPostData,
+  ForumThreadFull,
+  FeedData,
 };

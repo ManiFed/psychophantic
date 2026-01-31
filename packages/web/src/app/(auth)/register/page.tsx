@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { register, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState('');
@@ -18,8 +19,18 @@ export default function RegisterPage() {
     setFormError('');
     clearError();
 
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       setFormError('Please fill in all fields');
+      return;
+    }
+
+    if (username.length < 3) {
+      setFormError('Username must be at least 3 characters');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      setFormError('Username can only contain letters, numbers, underscores, and hyphens');
       return;
     }
 
@@ -34,7 +45,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await register(email, password);
+      await register(email, password, username);
       router.push('/dashboard');
     } catch {
       // Error is handled by the store
@@ -68,6 +79,24 @@ export default function RegisterPage() {
             disabled={isLoading}
             className="w-full bg-white/5 border border-white/10 px-4 py-3 text-sm placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 disabled:opacity-50 transition-colors"
           />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="username" className="text-xs text-white/70">username</label>
+          <input
+            id="username"
+            type="text"
+            placeholder="pick a username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={isLoading}
+            minLength={3}
+            maxLength={30}
+            className="w-full bg-white/5 border border-white/10 px-4 py-3 text-sm placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 disabled:opacity-50 transition-colors"
+          />
+          <p className="text-xs text-white/30">
+            3-30 characters. letters, numbers, underscores, and hyphens only.
+          </p>
         </div>
 
         <div className="space-y-2">

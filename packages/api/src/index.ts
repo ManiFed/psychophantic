@@ -8,6 +8,8 @@ import { creditRoutes } from './routes/credits.js';
 import { streamRoutes } from './routes/stream.js';
 import { profileRoutes } from './routes/profiles.js';
 import { arenaRoutes } from './routes/arena.js';
+import { forumRoutes } from './routes/forum.js';
+import { feedRoutes } from './routes/feed.js';
 import { getQueueStats, getFailedJobs } from './lib/queue.js';
 import { redis, isRedisAvailable } from './lib/redis.js';
 import { prisma } from './lib/prisma.js';
@@ -225,6 +227,8 @@ await server.register(creditRoutes, { prefix: '/api/credits' });
 await server.register(streamRoutes, { prefix: '/api/conversations' });
 await server.register(profileRoutes, { prefix: '/api/profiles' });
 await server.register(arenaRoutes, { prefix: '/api/arena' });
+await server.register(forumRoutes, { prefix: '/api/forum' });
+await server.register(feedRoutes, { prefix: '/api/feed' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3001', 10);

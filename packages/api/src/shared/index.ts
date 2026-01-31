@@ -16,6 +16,28 @@ export const ARENA_MIN_PARTICIPANTS = 2;
 export const ARENA_DEFAULT_ROUNDS = 3;
 export const ARENA_MAX_ROUNDS = 7;
 
+// Badges - hardcoded user lists
+export const VERIFIED_USER_IDS: string[] = []; // affiliate user IDs
+export const STAFF_USER_IDS: string[] = []; // psychophant staff user IDs
+
+export type BadgeType = 'verified' | 'staff';
+
+export interface UserBadge {
+  type: BadgeType;
+  label: string;
+}
+
+export const getBadgesForUser = (userId: string): UserBadge[] => {
+  const badges: UserBadge[] = [];
+  if (STAFF_USER_IDS.includes(userId)) {
+    badges.push({ type: 'staff', label: 'Staff' });
+  }
+  if (VERIFIED_USER_IDS.includes(userId)) {
+    badges.push({ type: 'verified', label: 'Verified' });
+  }
+  return badges;
+};
+
 // ============ Enums ============
 
 export enum ConversationMode {
