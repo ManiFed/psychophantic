@@ -364,7 +364,7 @@ export async function arenaRoutes(server: FastifyInstance) {
         }));
       }
 
-      return { instruction };
+      return { instruction, confirmed: true };
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({ error: 'Validation error', details: err.errors });
@@ -464,6 +464,53 @@ export async function arenaRoutes(server: FastifyInstance) {
 
     // Prevent Fastify from sending a response
     reply.hijack();
+  });
+
+  // Close arena room early (any participant or creator)
+  server.post('/:id/close', { preHandler: [authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+
+    const room = await prisma.arenaRoom.findUnique({
+      where: { id },
+      include: { participants: true },
+    });
+
+    if (!room) {
+      return reply.status(404).send({ error: 'Arena room not found' });
+    }
+
+    const isParticipant = room.participants.some((p) => p.userId === request.user.id);
+    if (!isParticipant && room.createdById !== request.user.id) {
+      return reply.status(403).send({ error: 'Only participants or the creator can close this arena' });
+    }
+
+    if (room.status !== 'active') {
+      return reply.status(400).send({ error: 'Arena is not active' });
+    }
+
+    // Complete the conversation
+    if (room.conversationId) {
+      await prisma.conversation.update({
+        where: { id: room.conversationId },
+        data: { status: 'completed' },
+      });
+    }
+
+    await prisma.arenaRoom.update({
+      where: { id },
+      data: { status: 'completed' },
+    });
+
+    // Notify all participants
+    if (redis) {
+      await redis.publish(`arena:${id}`, JSON.stringify({
+        type: 'conversation:complete',
+        data: { totalCostCents: 0 },
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    return { success: true };
   });
 
   // Delete/cancel arena room (creator only)

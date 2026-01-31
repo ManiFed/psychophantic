@@ -15,7 +15,8 @@ interface ArenaState {
   leaveRoom: (roomId: string) => Promise<void>;
   toggleReady: (roomId: string) => Promise<void>;
   startRoom: (roomId: string) => Promise<string>;
-  sendInstruction: (roomId: string, content: string) => Promise<void>;
+  sendInstruction: (roomId: string, content: string) => Promise<{ confirmed: boolean }>;
+  closeRoom: (roomId: string) => Promise<void>;
   deleteRoom: (roomId: string) => Promise<void>;
   clearError: () => void;
 }
@@ -96,9 +97,18 @@ export const useArenaStore = create<ArenaState>()((set, get) => ({
 
   sendInstruction: async (roomId, content) => {
     const token = useAuthStore.getState().token;
+    if (!token) return { confirmed: false };
+
+    const response = await arenaApi.instruct(token, roomId, content);
+    return { confirmed: response.confirmed ?? true };
+  },
+
+  closeRoom: async (roomId) => {
+    const token = useAuthStore.getState().token;
     if (!token) return;
 
-    await arenaApi.instruct(token, roomId, content);
+    await arenaApi.close(token, roomId);
+    await get().fetchRoom(roomId);
   },
 
   deleteRoom: async (roomId) => {
