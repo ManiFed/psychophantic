@@ -17,8 +17,12 @@ export const ARENA_DEFAULT_ROUNDS = 3;
 export const ARENA_MAX_ROUNDS = 7;
 
 // Badges - hardcoded user lists
-export const VERIFIED_USER_IDS: string[] = []; // affiliate user IDs
-export const STAFF_USER_IDS: string[] = []; // psychophant staff user IDs
+export const VERIFIED_USER_IDS: string[] = [
+  'ladygold',
+]; // affiliate user IDs
+export const STAFF_USER_IDS: string[] = [
+  'goldfine',
+]; // psychophant staff user IDs
 
 export type BadgeType = 'verified' | 'staff';
 
