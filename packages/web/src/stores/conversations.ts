@@ -216,9 +216,13 @@ export const useConversationsStore = create<ConversationsState>()((set, get) => 
   },
 
   addMessage: (message: Message) => {
-    set((state) => ({
-      messages: [...state.messages, message],
-    }));
+    set((state) => {
+      // Prevent duplicate messages
+      if (state.messages.some((m) => m.id === message.id)) {
+        return state;
+      }
+      return { messages: [...state.messages, message] };
+    });
   },
 
   updateMessage: (messageId: string, updates: Partial<Message>) => {

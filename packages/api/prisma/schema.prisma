@@ -14,6 +14,8 @@ model User {
   email        String   @unique
   username     String?  @unique
   passwordHash String   @map("password_hash")
+  bio          String?
+  avatarUrl    String?  @map("avatar_url")
   noRateLimit  Boolean  @default(false) @map("no_rate_limit")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -28,6 +30,10 @@ model User {
   arenaRoomsCreated   ArenaRoom[]          @relation("ArenaRoomsCreated")
   arenaParticipants   ArenaParticipant[]
   arenaInstructions   ArenaInstruction[]
+  following           Follow[]             @relation("Following")
+  followers           Follow[]             @relation("Followers")
+  forumThreads        ForumThread[]
+  forumPosts          ForumPost[]
 
   @@map("users")
 }
@@ -269,6 +275,58 @@ model ArenaInstruction {
 
   @@index([arenaRoomId, agentId, applied])
   @@map("arena_instructions")
+}
+
+// ============ Social ============
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// ============ Forum ============
+
+model ForumThread {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  content   String
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts ForumPost[]
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("forum_threads")
+}
+
+model ForumPost {
+  id        String   @id @default(uuid())
+  threadId  String   @map("thread_id")
+  userId    String   @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([userId])
+  @@map("forum_posts")
 }
 
 // ============ Exports ============

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
 import { useCreditsStore, formatCents } from '@/stores/credits';
 import { CreditsPurchaseModal } from '@/components/CreditsPurchaseModal';
+import { WelcomeTour } from '@/components/WelcomeTour';
 
 function Logo() {
   return (
@@ -58,7 +59,7 @@ export default function DashboardLayout({
                 href="/dashboard"
                 className="text-xs text-white/60 hover:text-white transition-colors"
               >
-                dashboard
+                home
               </Link>
               <Link
                 href="/agents"
@@ -79,16 +80,10 @@ export default function DashboardLayout({
                 arena
               </Link>
               <Link
-                href="/credits"
+                href="/forum"
                 className="text-xs text-white/60 hover:text-white transition-colors"
               >
-                credits
-              </Link>
-              <Link
-                href="/profile"
-                className="text-xs text-white/60 hover:text-white transition-colors"
-              >
-                profile
+                forum
               </Link>
             </nav>
           </div>
@@ -105,7 +100,7 @@ export default function DashboardLayout({
             </div>
             <div className="flex items-center gap-3">
               <Link
-                href="/profile"
+                href={user?.username ? `/u/${user.username}` : '/profile'}
                 className="text-xs text-white/50 hover:text-white hidden sm:inline transition-colors"
               >
                 {user?.username || user?.email}
@@ -132,6 +127,9 @@ export default function DashboardLayout({
         isOpen={isCreditsModalOpen}
         onClose={() => setIsCreditsModalOpen(false)}
       />
+
+      {/* Welcome Tour */}
+      <WelcomeTour />
     </div>
   );
 }

@@ -14,6 +14,8 @@ export default function ConversationPage() {
   const conversationId = params.id as string;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
 
   const {
     currentConversation,
@@ -78,9 +80,20 @@ export default function ConversationPage() {
     fetchBalance();
   }, [conversationId, fetchConversation, fetchBalance]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Track if user is scrolled near the bottom
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const threshold = 100;
+    isNearBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  }, []);
+
+  // Auto-scroll only if user is near the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const handlePause = async () => {
@@ -237,7 +250,7 @@ export default function ConversationPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto pr-2 -mx-2 px-2">
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto pr-2 -mx-2 px-2">
         <MessageList
           messages={messages}
           participants={participants}
