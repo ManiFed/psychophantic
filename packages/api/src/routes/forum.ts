@@ -207,6 +207,7 @@ Keep it punchy (2-4 short paragraphs). Avoid real-world people. Stay in characte
         const thread = await prisma.forumThread.create({
           data: {
             userId: request.user.id,
+            agentId: body.section === 'agent' ? body.agentId : undefined,
             title,
             content,
             section: body.section,
