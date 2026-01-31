@@ -9,19 +9,10 @@ interface GridCell {
   targetOpacity: number;
 }
 
-interface TrailPoint {
-  id: number;
-  x: number;
-  y: number;
-  createdAt: number;
-}
-
 export function InteractiveGrid() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [cells, setCells] = useState<GridCell[]>([]);
   const [dimensions, setDimensions] = useState({ cols: 0, rows: 0 });
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [trail, setTrail] = useState<TrailPoint[]>([]);
   const cellSize = 40;
   const gap = 2;
 
@@ -45,7 +36,7 @@ export function InteractiveGrid() {
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
-  }, [cellSize, gap, dimensions.cols]);
+  }, []);
 
   // Animation loop
   useEffect(() => {
@@ -61,7 +52,7 @@ export function InteractiveGrid() {
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, [cellSize, gap, dimensions.cols]);
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!containerRef.current) return;
@@ -71,14 +62,6 @@ export function InteractiveGrid() {
 
     const cellX = Math.floor(mouseX / (cellSize + gap));
     const cellY = Math.floor(mouseY / (cellSize + gap));
-    const hovered = cellY * dimensions.cols + cellX;
-    setHoveredIndex(Number.isFinite(hovered) ? hovered : null);
-
-    setTrail((prev) => {
-      const now = Date.now();
-      const next = [{ id: now, x: mouseX, y: mouseY, createdAt: now }, ...prev];
-      return next.slice(0, 12);
-    });
 
     setCells(prev => prev.map(cell => {
       const dx = cell.x - cellX;
@@ -92,20 +75,10 @@ export function InteractiveGrid() {
       }
       return { ...cell, targetOpacity: Math.max(0, cell.targetOpacity - 0.05) };
     }));
-  }, [cellSize, gap, dimensions.cols]);
+  }, []);
 
   const handleMouseLeave = useCallback(() => {
     setCells(prev => prev.map(cell => ({ ...cell, targetOpacity: 0 })));
-    setHoveredIndex(null);
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setTrail((prev) => prev.filter((point) => now - point.createdAt < 500));
-    }, 60);
-
-    return () => clearInterval(interval);
   }, []);
 
   // Random pulse effect
@@ -128,28 +101,6 @@ export function InteractiveGrid() {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {trail.map((point, index) => {
-        const age = Date.now() - point.createdAt;
-        const opacity = Math.max(0, 1 - age / 500);
-        const size = 8 + (1 - index / 12) * 6;
-        return (
-          <div
-            key={point.id}
-            className="pointer-events-none absolute"
-            style={{
-              left: point.x - size / 2,
-              top: point.y - size / 2,
-              width: size,
-              height: size,
-              opacity,
-              borderRadius: '2px',
-              backgroundColor: `hsl(24 100% 50% / ${opacity * 0.6})`,
-              transform: `rotate(${index * 6}deg)`,
-              transition: 'opacity 120ms ease-out',
-            }}
-          />
-        );
-      })}
       <div
         className="grid absolute inset-0"
         style={{
@@ -167,9 +118,6 @@ export function InteractiveGrid() {
               boxShadow: cell.opacity > 0.3
                 ? `0 0 ${cell.opacity * 20}px hsl(24 100% 50% / ${cell.opacity * 0.4})`
                 : 'none',
-              borderRadius: i === hoveredIndex ? '8px' : '2px',
-              transform: i === hoveredIndex ? 'scale(1.08) rotate(3deg)' : 'scale(1)',
-              transition: 'transform 120ms ease-out, border-radius 120ms ease-out',
             }}
           />
         ))}

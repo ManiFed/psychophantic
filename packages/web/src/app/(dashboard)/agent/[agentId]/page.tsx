@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth';
-import { agentProfilesApi, AgentProfile, PublicConversation, CommentData } from '@/lib/api';
+import { agentProfilesApi, AgentProfile, PublicConversation } from '@/lib/api';
 
 export default function AgentProfilePage() {
   const params = useParams();
@@ -14,10 +14,6 @@ export default function AgentProfilePage() {
 
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [conversations, setConversations] = useState<PublicConversation[]>([]);
-  const [comments, setComments] = useState<CommentData[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [commentLoading, setCommentLoading] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -36,13 +32,6 @@ export default function AgentProfilePage() {
       }
     };
     fetchProfile();
-  }, [agentId]);
-
-  useEffect(() => {
-    agentProfilesApi
-      .listComments(agentId)
-      .then((data) => setComments(data.comments))
-      .catch(() => {});
   }, [agentId]);
 
   const handleAddToLibrary = async () => {
@@ -74,26 +63,6 @@ export default function AgentProfilePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remix agent');
       setActionLoading(null);
-    }
-  };
-
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCommentError(null);
-    if (!commentText.trim()) return;
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setCommentLoading(true);
-    try {
-      const result = await agentProfilesApi.createComment(token, agentId, commentText.trim());
-      setComments((prev) => [result.comment, ...prev]);
-      setCommentText('');
-    } catch (err) {
-      setCommentError(err instanceof Error ? err.message : 'Failed to post comment');
-    } finally {
-      setCommentLoading(false);
     }
   };
 
@@ -161,14 +130,6 @@ export default function AgentProfilePage() {
             <div className="flex items-center gap-4 text-xs text-white/40 mt-2">
               <span>{agent.templateUses} uses</span>
               <span>created {new Date(agent.createdAt).toLocaleDateString()}</span>
-              <span>
-                {agent.wins}W / {agent.losses}L
-              </span>
-              <span>
-                {agent.wins + agent.losses > 0
-                  ? `${Math.round(agent.winRate * 100)}% win rate`
-                  : 'no votes yet'}
-              </span>
             </div>
           </div>
         </div>
@@ -272,60 +233,6 @@ export default function AgentProfilePage() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Comments */}
-      <div className="border border-white/10 bg-white/5 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-white/70">comments</h2>
-          <span className="text-xs text-white/40">{comments.length}</span>
-        </div>
-
-        {comments.length === 0 ? (
-          <p className="text-xs text-white/50 mb-4">no comments yet. be the first to weigh in.</p>
-        ) : (
-          <div className="space-y-3 mb-4 max-h-64 overflow-y-auto pr-2">
-            {comments.map((comment) => (
-              <div key={comment.id} className="border border-white/10 p-3 bg-black/30">
-                <div className="flex items-center gap-2 mb-1 text-xs text-white/40">
-                  <div className="w-6 h-6 bg-orange-500/80 flex items-center justify-center text-[10px] font-bold text-black overflow-hidden">
-                    {comment.user.avatarUrl ? (
-                      <img src={comment.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      (comment.user.username || 'U').charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <span>{comment.user.username || 'anonymous'}</span>
-                  <span>• {new Date(comment.createdAt).toLocaleDateString()}</span>
-                </div>
-                <p className="text-sm text-white/80 whitespace-pre-wrap">{comment.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <form onSubmit={handleCommentSubmit} className="space-y-2">
-          {commentError && (
-            <div className="border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
-              {commentError}
-            </div>
-          )}
-          <textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="add a comment..."
-            maxLength={2000}
-            rows={3}
-            className="w-full bg-black/40 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50 resize-none"
-          />
-          <button
-            type="submit"
-            disabled={commentLoading || !commentText.trim()}
-            className="bg-orange-500 text-black px-4 py-2 text-xs font-medium hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {commentLoading ? 'posting...' : 'post comment'}
-          </button>
-        </form>
       </div>
     </div>
   );

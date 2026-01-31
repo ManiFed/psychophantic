@@ -21,16 +21,7 @@ export default function NewConversationPage() {
   const [title, setTitle] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
   const [isPublic, setIsPublic] = useState(false);
-  const [allowCoalitions, setAllowCoalitions] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const canAllowCoalitions = mode === 'debate' && selectedAgentIds.length > 2;
-
-  useEffect(() => {
-    if (!canAllowCoalitions) {
-      setAllowCoalitions(false);
-    }
-  }, [canAllowCoalitions]);
 
   useEffect(() => {
     fetchAgents();
@@ -76,7 +67,6 @@ export default function NewConversationPage() {
         title: title.trim() || undefined,
         totalRounds: mode === 'debate' ? totalRounds : undefined,
         isPublic,
-        allowCoalitions: canAllowCoalitions ? allowCoalitions : undefined,
       };
 
       const conversation = await createConversation(data);
@@ -225,34 +215,6 @@ export default function NewConversationPage() {
             <p className="text-xs text-white/30">
               each agent speaks once per round (1-20 rounds)
             </p>
-          </div>
-        )}
-
-        {mode === 'debate' && (
-          <div className="space-y-2">
-            <label className="text-xs text-white/70">coalition forming</label>
-            <button
-              type="button"
-              onClick={() => setAllowCoalitions((prev) => !prev)}
-              disabled={!canAllowCoalitions}
-              className={`flex items-center gap-3 p-3 border transition-colors w-full text-left ${
-                allowCoalitions && canAllowCoalitions
-                  ? 'border-orange-500/50 bg-orange-500/10'
-                  : 'border-white/10 hover:border-white/20'
-              } ${!canAllowCoalitions ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className={`w-8 h-4 rounded-full relative transition-colors ${allowCoalitions ? 'bg-orange-500' : 'bg-white/20'}`}>
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${allowCoalitions ? 'left-[18px]' : 'left-0.5'}`} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">{allowCoalitions ? 'enabled' : 'disabled'}</p>
-                <p className="text-xs text-white/40">
-                  {canAllowCoalitions
-                    ? 'allow agents to form temporary alliances during debate.'
-                    : 'requires at least 3 agents; collaboration already assumes coalitions.'}
-                </p>
-              </div>
-            </button>
           </div>
         )}
 

@@ -35,10 +35,6 @@ model User {
   followers           Follow[]             @relation("Followers")
   forumThreads        ForumThread[]
   forumPosts          ForumPost[]
-  agentComments       AgentComment[]
-  conversationComments ConversationComment[]
-  conversationVotes   ConversationVote[]
-  arenaVotes          ArenaVote[]
 
   @@map("users")
 }
@@ -107,9 +103,6 @@ model Agent {
   arenaInstructions  ArenaInstruction[]
   forumThreads       ForumThread[]             @relation("AgentThreads")
   forumPosts         ForumPost[]               @relation("AgentPosts")
-  agentComments      AgentComment[]
-  conversationVotesWon ConversationVote[]      @relation("ConversationVoteWinner")
-  arenaVotesWon      ArenaVote[]               @relation("ArenaVoteWinner")
 
   @@index([userId])
   @@index([isTemplate])
@@ -156,7 +149,6 @@ model Conversation {
   shareSlug             String?  @unique @map("share_slug")
   totalCostCents        Int      @default(0) @map("total_cost_cents")
   initialPrompt         String?  @map("initial_prompt")
-  allowCoalitions       Boolean  @default(false) @map("allow_coalitions")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -167,8 +159,6 @@ model Conversation {
   messages          Message[]
   coalitionEvents   CoalitionEvent[]
   arenaRoom         ArenaRoom?
-  comments          ConversationComment[]
-  votes             ConversationVote[]
 
   @@index([userId])
   @@index([publicSlug])
@@ -250,7 +240,6 @@ model ArenaRoom {
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   participants   ArenaParticipant[]
   instructions   ArenaInstruction[]
-  votes          ArenaVote[]
 
   @@index([status])
   @@index([createdById])
@@ -347,70 +336,6 @@ model ForumPost {
   @@index([threadId, createdAt])
   @@index([userId])
   @@map("forum_posts")
-}
-
-// ============ Comments & Votes ============
-
-model AgentComment {
-  id        String   @id @default(uuid())
-  agentId   String   @map("agent_id")
-  userId    String   @map("user_id")
-  content   String
-  createdAt DateTime @default(now()) @map("created_at")
-
-  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([agentId, createdAt])
-  @@map("agent_comments")
-}
-
-model ConversationComment {
-  id             String   @id @default(uuid())
-  conversationId String   @map("conversation_id")
-  userId         String   @map("user_id")
-  content        String
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId, createdAt])
-  @@map("conversation_comments")
-}
-
-model ConversationVote {
-  id             String   @id @default(uuid())
-  conversationId String   @map("conversation_id")
-  voterId        String   @map("voter_id")
-  winnerAgentId  String   @map("winner_agent_id")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  voter        User         @relation(fields: [voterId], references: [id], onDelete: Cascade)
-  winnerAgent  Agent        @relation("ConversationVoteWinner", fields: [winnerAgentId], references: [id], onDelete: Cascade)
-
-  @@unique([conversationId, voterId])
-  @@index([conversationId])
-  @@index([winnerAgentId])
-  @@map("conversation_votes")
-}
-
-model ArenaVote {
-  id            String   @id @default(uuid())
-  arenaRoomId   String   @map("arena_room_id")
-  voterId       String   @map("voter_id")
-  winnerAgentId String   @map("winner_agent_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  arenaRoom  ArenaRoom @relation(fields: [arenaRoomId], references: [id], onDelete: Cascade)
-  voter      User      @relation(fields: [voterId], references: [id], onDelete: Cascade)
-  winnerAgent Agent     @relation("ArenaVoteWinner", fields: [winnerAgentId], references: [id], onDelete: Cascade)
-
-  @@unique([arenaRoomId, voterId])
-  @@index([arenaRoomId])
-  @@index([winnerAgentId])
-  @@map("arena_votes")
 }
 
 // ============ Subscriptions ============

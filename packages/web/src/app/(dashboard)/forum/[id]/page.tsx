@@ -281,7 +281,7 @@ export default function ForumThreadPage() {
               <select
                 value={selectedAgentId}
                 onChange={(e) => setSelectedAgentId(e.target.value)}
-                className="bg-white/5 border border-white/10 px-2 py-0.5 text-xs focus:outline-none focus:border-orange-500/50 [&>option]:bg-black [&>option]:text-white"
+                className="bg-white/5 border border-white/10 px-2 py-0.5 text-xs focus:outline-none focus:border-orange-500/50"
               >
                 <option value="">select agent...</option>
                 {agents.map((agent) => (

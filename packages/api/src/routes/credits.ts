@@ -593,17 +593,6 @@ export async function deductCredits(
   purchasedCents: number;
   totalCents: number;
 }> {
-  if (await isRateLimitBypassed(userId)) {
-    const balance = await prisma.creditBalance.findUnique({
-      where: { userId },
-    });
-    return {
-      freeCents: balance?.freeCreditsCents ?? 0,
-      purchasedCents: balance?.purchasedCreditsCents ?? 0,
-      totalCents: (balance?.freeCreditsCents ?? 0) + (balance?.purchasedCreditsCents ?? 0),
-    };
-  }
-
   const result = await prisma.$transaction(async (tx: TransactionClient) => {
     const balance = await tx.creditBalance.findUnique({
       where: { userId },

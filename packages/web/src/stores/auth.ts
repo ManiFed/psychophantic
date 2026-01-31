@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, type PersistStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { authApi } from '@/lib/api';
 
 interface User {
@@ -26,7 +26,6 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  // Persist auth with a TTL so users stay signed in for a limited time
   persist(
     (set, get) => ({
       user: null,
@@ -103,31 +102,6 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'psychophant-auth',
       partialize: (state) => ({ token: state.token, user: state.user }),
-      storage: (() => {
-        const AUTH_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-        return {
-          getItem: (name) => {
-            if (typeof window === 'undefined') return null;
-            const raw = window.localStorage.getItem(name);
-            if (!raw) return null;
-            const data = JSON.parse(raw) as { state: AuthState; version: number; expiresAt?: number };
-            if (data.expiresAt && Date.now() > data.expiresAt) {
-              window.localStorage.removeItem(name);
-              return null;
-            }
-            return data;
-          },
-          setItem: (name, value) => {
-            if (typeof window === 'undefined') return;
-            const payload = { ...value, expiresAt: Date.now() + AUTH_TTL_MS };
-            window.localStorage.setItem(name, JSON.stringify(payload));
-          },
-          removeItem: (name) => {
-            if (typeof window === 'undefined') return;
-            window.localStorage.removeItem(name);
-          },
-        } as PersistStorage<AuthState>;
-      })(),
     }
   )
 );

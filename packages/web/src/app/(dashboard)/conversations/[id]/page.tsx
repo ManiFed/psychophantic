@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useConversationsStore } from '@/stores/conversations';
 import { useCreditsStore, formatCents } from '@/stores/credits';
 import { useConversationStream } from '@/hooks/useConversationStream';
-import { conversationsApi, CommentData, VoteSummary } from '@/lib/api';
+import { conversationsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { MessageList } from '@/components/MessageBubble';
 
@@ -40,15 +40,6 @@ export default function ConversationPage() {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const [comments, setComments] = useState<CommentData[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [commentLoading, setCommentLoading] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
-  const [voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
-  const [voteLoading, setVoteLoading] = useState(false);
-  const [voteError, setVoteError] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
 
   // Memoize callbacks to prevent unnecessary re-renders
   const handleMessageStart = useCallback((agentId: string, messageId: string) => {
@@ -94,24 +85,6 @@ export default function ConversationPage() {
     fetchBalance();
   }, [conversationId, fetchConversation, fetchBalance]);
 
-  useEffect(() => {
-    if (currentConversation?.isPublic) {
-      conversationsApi
-        .listComments(conversationId)
-        .then((data) => setComments(data.comments))
-        .catch(() => {});
-    }
-  }, [conversationId, currentConversation?.isPublic]);
-
-  useEffect(() => {
-    if (currentConversation?.status === 'completed' && currentConversation.mode === 'debate') {
-      conversationsApi
-        .getVotes(conversationId, token || undefined)
-        .then((data) => setVoteSummary(data.summary))
-        .catch(() => {});
-    }
-  }, [conversationId, currentConversation?.status, currentConversation?.mode, token]);
-
   // Track if user is scrolled near the bottom
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -155,104 +128,6 @@ export default function ConversationPage() {
       console.error('Failed to interject:', err);
     }
   };
-
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCommentError(null);
-    if (!commentText.trim()) return;
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setCommentLoading(true);
-    try {
-      const result = await conversationsApi.createComment(
-        token,
-        conversationId,
-        commentText.trim()
-      );
-      setComments((prev) => [result.comment, ...prev]);
-      setCommentText('');
-    } catch (err) {
-      setCommentError(err instanceof Error ? err.message : 'Failed to post comment');
-    } finally {
-      setCommentLoading(false);
-    }
-  };
-
-  const handleVote = async (agentId: string) => {
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setVoteError(null);
-    setVoteLoading(true);
-    try {
-      const result = await conversationsApi.vote(token, conversationId, agentId);
-      setVoteSummary(result.summary);
-    } catch (err) {
-      setVoteError(err instanceof Error ? err.message : 'Failed to record vote');
-    } finally {
-      setVoteLoading(false);
-    }
-  };
-
-  const handleSpeak = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setTtsError('Text-to-speech is not supported in this browser.');
-      return;
-    }
-    setTtsError(null);
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const narration = messages
-      .filter((msg) => msg.role !== 'system')
-      .map((msg) => {
-        if (msg.role === 'user') return `Moderator says: ${msg.content}`;
-        const participant = participants.find((p) => p.agentId === msg.agentId);
-        const name = participant?.agent.name || 'Agent';
-        return `${name} argues: ${msg.content}`;
-      });
-
-    if (narration.length === 0) return;
-
-    let index = 0;
-    setIsSpeaking(true);
-
-    const speakNext = () => {
-      if (index >= narration.length) {
-        setIsSpeaking(false);
-        return;
-      }
-      const utterance = new SpeechSynthesisUtterance(narration[index]);
-      utterance.rate = 1.05;
-      utterance.pitch = 0.9;
-      utterance.onend = () => {
-        index += 1;
-        speakNext();
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
-      synth.speak(utterance);
-    };
-
-    speakNext();
-  };
-
-  const handleStopSpeak = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
 
   if (isLoading && !currentConversation) {
     return (
@@ -311,12 +186,6 @@ export default function ConversationPage() {
           </Link>
           <div className="flex items-center gap-2">
             <button
-              onClick={isSpeaking ? handleStopSpeak : handleSpeak}
-              className="px-2.5 py-1 text-[10px] border border-white/10 text-white/50 hover:text-white hover:border-white/30 transition-colors"
-            >
-              {isSpeaking ? 'stop audio' : 'listen'}
-            </button>
-            <button
               onClick={async () => {
                 if (shareUrl) {
                   navigator.clipboard.writeText(shareUrl);
@@ -355,9 +224,6 @@ export default function ConversationPage() {
         <h1 className="text-lg font-bold">
           {currentConversation.title || 'Untitled Conversation'}
         </h1>
-        {ttsError && (
-          <p className="text-xs text-red-400 mt-2">{ttsError}</p>
-        )}
 
         <div className="flex items-center gap-3 mt-2">
           <span className="text-[10px] px-2 py-0.5 border border-white/20 uppercase tracking-wider text-white/60">
@@ -442,52 +308,11 @@ export default function ConversationPage() {
       {/* Controls */}
       <div className="flex-shrink-0 pt-4 mt-2 border-t border-white/[0.06]">
         {isCompleted ? (
-          <div className="space-y-4">
-            <div className="text-center py-6 border border-white/[0.06] bg-white/[0.02]">
-              <p className="text-sm text-white/50">conversation completed</p>
-              <p className="text-xs text-white/30 mt-1">
-                Total cost: ${(currentConversation.totalCostCents / 100).toFixed(2)}
-              </p>
-            </div>
-
-            {currentConversation.mode === 'debate' && (
-              <div className="border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs text-white/60 font-medium">vote for the winner</h3>
-                  <span className="text-xs text-white/30">
-                    {voteSummary?.totalVotes ?? 0} votes
-                  </span>
-                </div>
-                {voteError && (
-                  <div className="border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400 mb-3">
-                    {voteError}
-                  </div>
-                )}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {participants.map((participant) => {
-                    const count = voteSummary?.results.find(
-                      (result) => result.agentId === participant.agentId
-                    )?.count ?? 0;
-                    const isSelected = voteSummary?.userVote === participant.agentId;
-                    return (
-                      <button
-                        key={participant.id}
-                        onClick={() => handleVote(participant.agentId)}
-                        disabled={voteLoading}
-                        className={`flex items-center justify-between border px-3 py-2 text-xs transition-colors ${
-                          isSelected
-                            ? 'border-orange-500/60 text-orange-400 bg-orange-500/10'
-                            : 'border-white/10 text-white/60 hover:border-orange-500/40'
-                        }`}
-                      >
-                        <span>{participant.agent.name}</span>
-                        <span className="text-[10px] text-white/40">{count} votes</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="text-center py-6 border border-white/[0.06] bg-white/[0.02]">
+            <p className="text-sm text-white/50">conversation completed</p>
+            <p className="text-xs text-white/30 mt-1">
+              Total cost: ${(currentConversation.totalCostCents / 100).toFixed(2)}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -558,63 +383,6 @@ export default function ConversationPage() {
           </div>
         )}
       </div>
-
-      {currentConversation.isPublic && (
-        <div className="flex-shrink-0 mt-4 border-t border-white/[0.06] pt-4">
-          <div className="border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs text-white/60 font-medium">comments</h3>
-              <span className="text-xs text-white/30">{comments.length}</span>
-            </div>
-
-            {comments.length === 0 ? (
-              <p className="text-xs text-white/50 mb-3">no comments yet. add the first take.</p>
-            ) : (
-              <div className="space-y-3 max-h-48 overflow-y-auto pr-2 mb-3">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="border border-white/10 p-3 bg-black/30">
-                    <div className="flex items-center gap-2 mb-1 text-xs text-white/40">
-                      <div className="w-6 h-6 bg-orange-500/80 flex items-center justify-center text-[10px] font-bold text-black overflow-hidden">
-                        {comment.user.avatarUrl ? (
-                          <img src={comment.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          (comment.user.username || 'U').charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <span>{comment.user.username || 'anonymous'}</span>
-                      <span>• {new Date(comment.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-sm text-white/80 whitespace-pre-wrap">{comment.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <form onSubmit={handleCommentSubmit} className="space-y-2">
-              {commentError && (
-                <div className="border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
-                  {commentError}
-                </div>
-              )}
-              <textarea
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="add a comment..."
-                maxLength={2000}
-                rows={3}
-                className="w-full bg-black/40 border border-white/10 px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50 resize-none"
-              />
-              <button
-                type="submit"
-                disabled={commentLoading || !commentText.trim()}
-                className="bg-orange-500 text-black px-4 py-2 text-xs font-medium hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {commentLoading ? 'posting...' : 'post comment'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

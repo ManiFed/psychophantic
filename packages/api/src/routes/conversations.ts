@@ -39,19 +39,10 @@ const createConversationSchema = z.object({
   title: z.string().max(255).optional(),
   initialPrompt: z.string().min(1).max(5000),
   isPublic: z.boolean().optional(),
-  allowCoalitions: z.boolean().optional(),
 });
 
 const interjectionSchema = z.object({
   content: z.string().min(1).max(5000),
-});
-
-const commentSchema = z.object({
-  content: z.string().min(1).max(2000),
-});
-
-const voteSchema = z.object({
-  winnerAgentId: z.string().uuid(),
 });
 
 export async function conversationRoutes(server: FastifyInstance) {
@@ -161,8 +152,6 @@ export async function conversationRoutes(server: FastifyInstance) {
             initialPrompt: body.initialPrompt,
             isPublic,
             publicSlug,
-            allowCoalitions:
-              body.mode === 'debate' && body.allowCoalitions === true && body.agentIds.length > 2,
             participants: {
               create: body.agentIds.map((agentId, index) => ({
                 agentId,
@@ -191,190 +180,6 @@ export async function conversationRoutes(server: FastifyInstance) {
           error: 'An unexpected error occurred. Please try again.',
           code: 'INTERNAL_ERROR',
         });
-      }
-    }
-  );
-
-  const buildVoteSummary = async (conversationId: string, userId?: string) => {
-    const votes = await prisma.conversationVote.groupBy({
-      by: ['winnerAgentId'],
-      where: { conversationId },
-      _count: { winnerAgentId: true },
-    });
-
-    const totalVotes = votes.reduce((sum, v) => sum + v._count.winnerAgentId, 0);
-    const results = votes.map((v) => ({
-      agentId: v.winnerAgentId,
-      count: v._count.winnerAgentId,
-    }));
-
-    let userVote: string | null = null;
-    if (userId) {
-      const vote = await prisma.conversationVote.findUnique({
-        where: { conversationId_voterId: { conversationId, voterId: userId } },
-      });
-      userVote = vote?.winnerAgentId ?? null;
-    }
-
-    return { totalVotes, results, userVote };
-  };
-
-  // Get comments for a public conversation
-  server.get(
-    '/:conversationId/comments',
-    async (request: FastifyRequest<{ Params: { conversationId: string } }>, reply: FastifyReply) => {
-      const conversation = await prisma.conversation.findFirst({
-        where: {
-          id: request.params.conversationId,
-          isPublic: true,
-        },
-      });
-
-      if (!conversation) {
-        return reply.status(404).send({ error: 'Conversation not found' });
-      }
-
-      const comments = await prisma.conversationComment.findMany({
-        where: { conversationId: conversation.id },
-        include: {
-          user: {
-            select: { id: true, username: true, avatarUrl: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-
-      return { comments };
-    }
-  );
-
-  // Add comment to a public conversation
-  server.post(
-    '/:conversationId/comments',
-    { preHandler: [authenticate] },
-    async (request: FastifyRequest<{ Params: { conversationId: string } }>, reply: FastifyReply) => {
-      try {
-        const body = commentSchema.parse(request.body);
-        const conversation = await prisma.conversation.findFirst({
-          where: {
-            id: request.params.conversationId,
-            isPublic: true,
-          },
-        });
-
-        if (!conversation) {
-          return reply.status(404).send({ error: 'Conversation not found' });
-        }
-
-        const comment = await prisma.conversationComment.create({
-          data: {
-            conversationId: conversation.id,
-            userId: request.user.id,
-            content: body.content,
-          },
-          include: {
-            user: {
-              select: { id: true, username: true, avatarUrl: true },
-            },
-          },
-        });
-
-        return { comment };
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({ error: 'Validation error', details: err.errors });
-        }
-        console.error('Error creating conversation comment:', err);
-        return reply.status(500).send({ error: 'Failed to create comment', code: 'INTERNAL_ERROR' });
-      }
-    }
-  );
-
-  // Get vote summary for a debate conversation
-  server.get(
-    '/:conversationId/votes',
-    async (request: FastifyRequest<{ Params: { conversationId: string } }>, reply: FastifyReply) => {
-      let userId: string | undefined;
-      try {
-        await request.jwtVerify();
-        userId = request.user?.id;
-      } catch {
-        userId = undefined;
-      }
-
-      const conversation = await prisma.conversation.findFirst({
-        where: {
-          id: request.params.conversationId,
-          mode: 'debate',
-          OR: [
-            { isPublic: true },
-            ...(userId ? [{ userId }] : []),
-          ],
-        },
-      });
-
-      if (!conversation) {
-        return reply.status(404).send({ error: 'Conversation not found' });
-      }
-
-      const summary = await buildVoteSummary(conversation.id, userId);
-      return { summary };
-    }
-  );
-
-  // Vote for a debate winner
-  server.post(
-    '/:conversationId/vote',
-    { preHandler: [authenticate] },
-    async (request: FastifyRequest<{ Params: { conversationId: string } }>, reply: FastifyReply) => {
-      try {
-        const body = voteSchema.parse(request.body);
-        const conversation = await prisma.conversation.findFirst({
-          where: {
-            id: request.params.conversationId,
-            mode: 'debate',
-            OR: [{ isPublic: true }, { userId: request.user.id }],
-          },
-          include: { participants: true },
-        });
-
-        if (!conversation) {
-          return reply.status(404).send({ error: 'Conversation not found' });
-        }
-
-        if (conversation.status !== 'completed') {
-          return reply.status(400).send({ error: 'Voting is only available after completion' });
-        }
-
-        const participantIds = new Set(conversation.participants.map((p) => p.agentId));
-        if (!participantIds.has(body.winnerAgentId)) {
-          return reply.status(400).send({ error: 'Winner must be a participant' });
-        }
-
-        await prisma.conversationVote.upsert({
-          where: {
-            conversationId_voterId: {
-              conversationId: conversation.id,
-              voterId: request.user.id,
-            },
-          },
-          update: { winnerAgentId: body.winnerAgentId },
-          create: {
-            conversationId: conversation.id,
-            voterId: request.user.id,
-            winnerAgentId: body.winnerAgentId,
-          },
-        });
-
-        const summary = await buildVoteSummary(conversation.id, request.user.id);
-        return { summary };
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({ error: 'Validation error', details: err.errors });
-        }
-        console.error('Error voting on conversation:', err);
-        return reply.status(500).send({ error: 'Failed to record vote', code: 'INTERNAL_ERROR' });
       }
     }
   );
@@ -702,7 +507,6 @@ export async function conversationRoutes(server: FastifyInstance) {
           totalRounds: conversation.totalRounds,
           currentRound: branchMessage.roundNumber || 1,
           initialPrompt: conversation.initialPrompt,
-          allowCoalitions: conversation.allowCoalitions,
           parentConversationId: conversation.id,
           branchPointMessageId: fromMessageId,
           participants: {
@@ -978,7 +782,6 @@ export async function conversationRoutes(server: FastifyInstance) {
           totalRounds: original.totalRounds,
           currentRound: original.currentRound,
           initialPrompt: original.initialPrompt,
-          allowCoalitions: original.allowCoalitions,
           parentConversationId: original.id,
           participants: {
             create: original.participants.map((p) => ({
