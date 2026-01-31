@@ -25,6 +25,8 @@ interface AuthState {
   clearError: () => void;
 }
 
+type PersistedAuthState = Pick<AuthState, 'token' | 'user'>;
+
 export const useAuthStore = create<AuthState>()(
   // Persist auth with a TTL so users stay signed in for a limited time
   persist(
@@ -110,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
             if (typeof window === 'undefined') return null;
             const raw = window.localStorage.getItem(name);
             if (!raw) return null;
-            const data = JSON.parse(raw) as { state: AuthState; version: number; expiresAt?: number };
+            const data = JSON.parse(raw) as { state: PersistedAuthState; version: number; expiresAt?: number };
             if (data.expiresAt && Date.now() > data.expiresAt) {
               window.localStorage.removeItem(name);
               return null;
@@ -126,7 +128,7 @@ export const useAuthStore = create<AuthState>()(
             if (typeof window === 'undefined') return;
             window.localStorage.removeItem(name);
           },
-        } as PersistStorage<AuthState>;
+        } as PersistStorage<PersistedAuthState>;
       })(),
     }
   )
