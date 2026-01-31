@@ -7,7 +7,7 @@ import { useArenaStore } from '@/stores/arena';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useArenaStream } from '@/hooks/useArenaStream';
-import { arenaApi, type Message, type Participant, type VoteSummary } from '@/lib/api';
+import type { Message, Participant } from '@/lib/api';
 
 interface StreamingMessage extends Message {
   isStreaming?: boolean;
@@ -17,7 +17,6 @@ export default function ArenaRoomPage() {
   const { id } = useParams<{ id: string }>();
   const { currentRoom, fetchRoom, joinRoom, leaveRoom, toggleReady, startRoom, sendInstruction, closeRoom, isLoading } = useArenaStore();
   const user = useAuthStore((s) => s.user);
-  const token = useAuthStore((s) => s.token);
   const { agents, fetchAgents } = useAgentsStore();
 
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -32,9 +31,6 @@ export default function ArenaRoomPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [kickCountdown, setKickCountdown] = useState<number | null>(null);
-  const [voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
-  const [voteLoading, setVoteLoading] = useState(false);
-  const [voteError, setVoteError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -64,15 +60,6 @@ export default function ArenaRoomPage() {
       setIsComplete(true);
     }
   }, [currentRoom?.conversation, currentRoom?.status]);
-
-  useEffect(() => {
-    if (currentRoom?.status === 'completed' || currentRoom?.status === 'cancelled') {
-      arenaApi
-        .getVotes(id)
-        .then((data) => setVoteSummary(data.summary))
-        .catch(() => {});
-    }
-  }, [currentRoom?.status, id]);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -304,20 +291,6 @@ export default function ArenaRoomPage() {
       setError(err instanceof Error ? err.message : 'Failed to close arena');
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  const handleVote = async (agentId: string) => {
-    if (!user || !token) return;
-    setVoteError(null);
-    setVoteLoading(true);
-    try {
-      const result = await arenaApi.vote(token, id, agentId);
-      setVoteSummary(result.summary);
-    } catch (err) {
-      setVoteError(err instanceof Error ? err.message : 'Failed to record vote');
-    } finally {
-      setVoteLoading(false);
     }
   };
 
@@ -611,45 +584,6 @@ export default function ArenaRoomPage() {
                   Instruct
                 </button>
               </form>
-            </div>
-          )}
-
-          {(isComplete || currentRoom.status === 'cancelled') && (
-            <div className="mt-4 border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs text-white/60 font-medium">vote for the arena winner</h3>
-                <span className="text-xs text-white/30">
-                  {voteSummary?.totalVotes ?? 0} votes
-                </span>
-              </div>
-              {voteError && (
-                <div className="border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400 mb-3">
-                  {voteError}
-                </div>
-              )}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {participants.map((participant) => {
-                  const count = voteSummary?.results.find(
-                    (result) => result.agentId === participant.agentId
-                  )?.count ?? 0;
-                  const isSelected = voteSummary?.userVote === participant.agentId;
-                  return (
-                    <button
-                      key={participant.id}
-                      onClick={() => handleVote(participant.agentId)}
-                      disabled={voteLoading}
-                      className={`flex items-center justify-between border px-3 py-2 text-xs transition-colors ${
-                        isSelected
-                          ? 'border-orange-500/60 text-orange-400 bg-orange-500/10'
-                          : 'border-white/10 text-white/60 hover:border-orange-500/40'
-                      }`}
-                    >
-                      <span>{participant.agent?.name || 'Agent'}</span>
-                      <span className="text-[10px] text-white/40">{count} votes</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           )}
         </div>

@@ -117,9 +117,6 @@ export default function DashboardPage() {
                         cloned {agent.templateUses}x
                       </p>
                     )}
-                    <p className="text-[10px] text-white/30 mt-1">
-                      {agent.wins}W / {agent.losses}L
-                    </p>
                   </Link>
                 ))}
               </div>

@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { getAgentWinLoss } from '../lib/stats.js';
 import { authenticate } from '../middleware/auth.js';
 
 // We validate models dynamically from OpenRouter instead of a static list
@@ -24,10 +23,6 @@ const createAgentSchema = z.object({
     .optional()
     .nullable(),
   isPublic: z.boolean().optional(),
-});
-
-const commentSchema = z.object({
-  content: z.string().min(1).max(2000),
 });
 
 const updateAgentSchema = createAgentSchema.partial();
@@ -165,16 +160,7 @@ export async function agentRoutes(server: FastifyInstance) {
       },
     });
 
-    const agentsWithStats = await Promise.all(
-      agents.map(async (agent) => {
-        const { wins, losses } = await getAgentWinLoss(agent.id);
-        const total = wins + losses;
-        const winRate = total > 0 ? wins / total : 0;
-        return { ...agent, wins, losses, winRate };
-      })
-    );
-
-    return { agents: agentsWithStats };
+    return { agents };
   });
 
   // Get public agent profile (no auth required)
@@ -229,9 +215,6 @@ export async function agentRoutes(server: FastifyInstance) {
       });
 
       const conversations = participations.map((p) => p.conversation);
-      const { wins, losses } = await getAgentWinLoss(agent.id);
-      const total = wins + losses;
-      const winRate = total > 0 ? wins / total : 0;
 
       return {
         agent: {
@@ -247,90 +230,9 @@ export async function agentRoutes(server: FastifyInstance) {
           templateUses: agent.templateUses,
           createdAt: agent.createdAt,
           creatorUsername: agent.user.username,
-          wins,
-          losses,
-          winRate,
         },
         conversations,
       };
-    }
-  );
-
-  // List comments for a public agent
-  server.get(
-    '/:agentId/comments',
-    async (
-      request: FastifyRequest<{ Params: { agentId: string } }>,
-      reply: FastifyReply
-    ) => {
-      const agent = await prisma.agent.findFirst({
-        where: {
-          id: request.params.agentId,
-          OR: [{ isPublic: true }, { isTemplate: true }],
-        },
-      });
-
-      if (!agent) {
-        return reply.status(404).send({ error: 'Agent not found' });
-      }
-
-      const comments = await prisma.agentComment.findMany({
-        where: { agentId: agent.id },
-        include: {
-          user: {
-            select: { id: true, username: true, avatarUrl: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-
-      return { comments };
-    }
-  );
-
-  // Add a comment to a public agent
-  server.post(
-    '/:agentId/comments',
-    { preHandler: [authenticate] },
-    async (
-      request: FastifyRequest<{ Params: { agentId: string } }>,
-      reply: FastifyReply
-    ) => {
-      try {
-        const body = commentSchema.parse(request.body);
-        const agent = await prisma.agent.findFirst({
-          where: {
-            id: request.params.agentId,
-            OR: [{ isPublic: true }, { isTemplate: true }],
-          },
-        });
-
-        if (!agent) {
-          return reply.status(404).send({ error: 'Agent not found' });
-        }
-
-        const comment = await prisma.agentComment.create({
-          data: {
-            agentId: agent.id,
-            userId: request.user.id,
-            content: body.content,
-          },
-          include: {
-            user: {
-              select: { id: true, username: true, avatarUrl: true },
-            },
-          },
-        });
-
-        return { comment };
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({ error: 'Validation error', details: err.errors });
-        }
-        console.error('Error creating agent comment:', err);
-        return reply.status(500).send({ error: 'Failed to create comment', code: 'INTERNAL_ERROR' });
-      }
     }
   );
 

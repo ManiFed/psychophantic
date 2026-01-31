@@ -1,19 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma.js';
-import { generateCompletion } from '../lib/openrouter.js';
 import { authenticate } from '../middleware/auth.js';
 import { getBadgesForUser } from '../shared/index.js';
-import { checkSufficientCredits, deductCredits } from './credits.js';
 
 const createThreadSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters').max(200).optional(),
-  content: z.string().min(1, 'Content is required').max(10000).optional(),
+  title: z.string().min(3, 'Title must be at least 3 characters').max(200),
+  content: z.string().min(1, 'Content is required').max(10000),
   section: z.enum(['human', 'agent']).default('human'),
   agentId: z.string().uuid().optional(),
-  topic: z.string().max(1000).optional(),
-  gossipTarget: z.string().max(120).optional(),
 });
 
 const createAgentThreadSchema = z.object({
@@ -132,84 +127,22 @@ export async function forumRoutes(server: FastifyInstance) {
       try {
         const body = createThreadSchema.parse(request.body);
 
-        if (body.section === 'human') {
-          if (!body.title?.trim() || !body.content?.trim()) {
-            return reply.status(400).send({ error: 'Title and content are required' });
-          }
-        }
-
-        let content = body.content?.trim() || '';
-        let title = body.title?.trim() || '';
-
-        // If agent section, verify agent belongs to user and generate gossip post
-        if (body.section === 'agent') {
-          if (!body.agentId) {
-            return reply.status(400).send({ error: 'Agent is required for agent posts' });
-          }
+        // If agent section, verify agent belongs to user
+        if (body.section === 'agent' && body.agentId) {
           const agent = await prisma.agent.findFirst({
             where: { id: body.agentId, userId: request.user.id },
           });
           if (!agent) {
             return reply.status(400).send({ error: 'Agent not found or does not belong to you' });
           }
-
-          const hasCredits = await checkSufficientCredits(request.user.id, 1);
-          if (!hasCredits) {
-            return reply.status(402).send({ error: 'Insufficient credits' });
-          }
-
-          const topic = body.topic?.trim() || 'rivalries and scandals among other agents';
-          const gossipTarget = body.gossipTarget?.trim();
-          const systemPrompt = `${agent.systemPrompt || ''}
-
-You are ${agent.name}. Your role: ${agent.role}.
-Write a forum post in your own voice. Be sharp, debate-ready, and a little dramatic.
-Focus on rivalries, scandals, and behind-the-scenes friction among agents on Psychophant.
-Keep it punchy (2-4 short paragraphs). Avoid real-world people. Stay in character.`;
-
-          const userPrompt = `Topic focus: ${topic}${gossipTarget ? `\nRival to call out: ${gossipTarget}` : ''}`;
-
-          const generation = await generateCompletion(agent.model, [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ], 600);
-
-          content = generation.content.trim();
-          title = title || `rivalry report: ${agent.name}`;
-
-          const threadId = randomUUID();
-
-          await deductCredits(request.user.id, generation.costCents, threadId);
-
-          const thread = await prisma.forumThread.create({
-            data: {
-              id: threadId,
-              userId: request.user.id,
-              agentId: body.agentId,
-              title,
-              content,
-              section: body.section,
-            },
-            include: {
-              user: {
-                select: { id: true, username: true, avatarUrl: true },
-              },
-              agent: {
-                select: { id: true, name: true, avatarColor: true, avatarUrl: true },
-              },
-              _count: { select: { posts: true } },
-            },
-          });
-
-          return { thread };
         }
 
         const thread = await prisma.forumThread.create({
           data: {
             userId: request.user.id,
             agentId: body.section === 'agent' ? body.agentId : undefined,
-            title,
-            content,
+            title: body.title,
+            content: body.content,
             section: body.section,
           },
           include: {

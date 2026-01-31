@@ -155,26 +155,6 @@ export const conversationsApi = {
       { token }
     ),
 
-  listComments: (id: string) =>
-    fetchApi<{ comments: CommentData[] }>(`/api/conversations/${id}/comments`),
-
-  createComment: (token: string, id: string, content: string) =>
-    fetchApi<{ comment: CommentData }>(`/api/conversations/${id}/comments`, {
-      token,
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    }),
-
-  getVotes: (id: string, token?: string) =>
-    fetchApi<{ summary: VoteSummary }>(`/api/conversations/${id}/votes`, { token }),
-
-  vote: (token: string, id: string, winnerAgentId: string) =>
-    fetchApi<{ summary: VoteSummary }>(`/api/conversations/${id}/vote`, {
-      token,
-      method: 'POST',
-      body: JSON.stringify({ winnerAgentId }),
-    }),
-
   create: (token: string, data: CreateConversationData) =>
     fetchApi<{ conversation: Conversation }>('/api/conversations', {
       token,
@@ -347,9 +327,6 @@ interface PublicAgent {
   templateUses: number;
   createdAt: string;
   user: { email: string; username: string | null };
-  wins: number;
-  losses: number;
-  winRate: number;
 }
 
 interface CreateAgentData {
@@ -386,7 +363,6 @@ interface Conversation {
   isPublic: boolean;
   publicSlug: string | null;
   totalCostCents: number;
-  allowCoalitions: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -398,7 +374,6 @@ interface CreateConversationData {
   title?: string;
   initialPrompt: string;
   isPublic?: boolean;
-  allowCoalitions?: boolean;
 }
 
 interface Message {
@@ -522,7 +497,7 @@ export const forumApi = {
   getThread: (id: string) =>
     fetchApi<{ thread: ForumThreadFull }>(`/api/forum/threads/${id}`),
 
-  createThread: (token: string, data: { title?: string; content?: string; section?: string; agentId?: string; topic?: string; gossipTarget?: string }) =>
+  createThread: (token: string, data: { title: string; content: string; section?: string; agentId?: string }) =>
     fetchApi<{ thread: ForumThread }>('/api/forum/threads', {
       token,
       method: 'POST',
@@ -557,16 +532,6 @@ export const agentProfilesApi = {
       conversations: PublicConversation[];
     }>(`/api/agents/${agentId}/profile`),
 
-  listComments: (agentId: string) =>
-    fetchApi<{ comments: CommentData[] }>(`/api/agents/${agentId}/comments`),
-
-  createComment: (token: string, agentId: string, content: string) =>
-    fetchApi<{ comment: CommentData }>(`/api/agents/${agentId}/comments`, {
-      token,
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    }),
-
   addToLibrary: (token: string, agentId: string) =>
     fetchApi<{ agent: Agent }>(`/api/agents/${agentId}/clone`, {
       token,
@@ -596,9 +561,6 @@ interface AgentProfile {
   templateUses: number;
   createdAt: string;
   creatorUsername: string | null;
-  wins: number;
-  losses: number;
-  winRate: number;
 }
 
 interface PublicConversation {
@@ -659,16 +621,6 @@ export const arenaApi = {
       token,
       method: 'POST',
       body: JSON.stringify({}),
-    }),
-
-  getVotes: (id: string) =>
-    fetchApi<{ summary: VoteSummary }>(`/api/arena/${id}/votes`),
-
-  vote: (token: string, id: string, winnerAgentId: string) =>
-    fetchApi<{ summary: VoteSummary }>(`/api/arena/${id}/vote`, {
-      token,
-      method: 'POST',
-      body: JSON.stringify({ winnerAgentId }),
     }),
 
   start: (token: string, id: string) =>
@@ -773,8 +725,6 @@ interface PublicProfileUser {
   followingCount: number;
   agentCount: number;
   conversationCount: number;
-  arenaWins: number;
-  arenaLosses: number;
 }
 
 interface FollowUser {
@@ -822,19 +772,6 @@ interface ForumThreadFull extends ForumThread {
   posts: ForumPostData[];
 }
 
-interface CommentData {
-  id: string;
-  content: string;
-  createdAt: string;
-  user: { id: string; username: string | null; avatarUrl: string | null };
-}
-
-interface VoteSummary {
-  totalVotes: number;
-  results: { agentId: string; count: number }[];
-  userVote: string | null;
-}
-
 // Feed types
 interface FeedData {
   trendingAgents: (PublicAgent & { user: { id: string; username: string | null; badges?: UserBadge[] } | null })[];
@@ -872,7 +809,5 @@ export type {
   ForumThread,
   ForumPostData,
   ForumThreadFull,
-  CommentData,
-  VoteSummary,
   FeedData,
 };
